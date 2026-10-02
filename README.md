@@ -19,12 +19,6 @@ ChatCMD is a self-hosted bridge between MCP-compatible AI clients and your compu
 
 The core application runs on your machine. It has no ChatCMD account, subscription, payment, quota, or hosted authentication dependency. Optional features can still make outbound connections—for example to ChatGPT, a Git repository used to install a skill, a Google Font, or a tunnel address that you configure.
 
-### This fork / 이 포크 사용
-
-Use the existing ChatCMD installation and usage instructions in this README. For ChatGPT integration, follow [docs/PLUGIN_SETUP.md](docs/PLUGIN_SETUP.md) and [chatgpt-extension/README.md](chatgpt-extension/README.md).
-
-설치와 기본 사용은 아래 기존 ChatCMD 설명을 그대로 따르면 됩니다. ChatGPT 연동은 [docs/PLUGIN_SETUP.md](docs/PLUGIN_SETUP.md)와 [chatgpt-extension/README.md](chatgpt-extension/README.md)를 따르면 됩니다.
-
 ## Download the latest release
 
 <p>
