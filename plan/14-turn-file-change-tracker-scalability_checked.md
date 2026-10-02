@@ -12,7 +12,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thiết kế lại cơ chế theo dõi “Các file đã thay đổi” theo turn. Native filesystem tools phải phát change record trực tiếp; recursive OS watcher chỉ dùng như fallback cho shell/external process và phải có debounce, quota, overflow recovery, ignore policy chung và snapshot bounded. Không commit.
+Trong project `<repository-root>`, hãy thiết kế lại cơ chế theo dõi “Các file đã thay đổi” theo turn. Native filesystem tools phải phát change record trực tiếp; recursive OS watcher chỉ dùng như fallback cho shell/external process và phải có debounce, quota, overflow recovery, ignore policy chung và snapshot bounded. Không commit.
 
 ## Ưu tiên
 

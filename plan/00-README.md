@@ -7,7 +7,7 @@ Thư mục này tách toàn bộ hạng mục cần sửa thành các plan độ
 Project áp dụng:
 
 ```text
-/Users/ducnghia/Downloads/dev/ChatCmdClient
+<repository-root>
 ```
 
 ## Quy tắc chung cho mọi plan

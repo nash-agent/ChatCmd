@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thiết kế lại middleware `request_identity` để authenticated agent, MCP session và private conversation scope được truyền qua trusted request extensions/session context, không cần đọc toàn JSON body rồi chèn field và serialize lại. Đồng thời giữ chống spoofing, hỗ trợ JSON-RPC batch và tương thích `rmcp`. Không commit.
+Trong project `<repository-root>`, hãy thiết kế lại middleware `request_identity` để authenticated agent, MCP session và private conversation scope được truyền qua trusted request extensions/session context, không cần đọc toàn JSON body rồi chèn field và serialize lại. Đồng thời giữ chống spoofing, hỗ trợ JSON-RPC batch và tương thích `rmcp`. Không commit.
 
 ## Ưu tiên
 

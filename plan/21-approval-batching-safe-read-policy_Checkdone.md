@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thiết kế lại approval policy để AI làm việc trên repository lớn không phải xin phép lặp lại cho từng read/stat/list/search vô hại, nhưng tuyệt đối không biến thành blanket unrestricted access. Thêm phân loại tool, task/turn/path-scoped grant, budget-scoped approval, batch approval summary, expiry/revocation và audit log. Không commit.
+Trong project `<repository-root>`, hãy thiết kế lại approval policy để AI làm việc trên repository lớn không phải xin phép lặp lại cho từng read/stat/list/search vô hại, nhưng tuyệt đối không biến thành blanket unrestricted access. Thêm phân loại tool, task/turn/path-scoped grant, budget-scoped approval, batch approval summary, expiry/revocation và audit log. Không commit.
 
 ## Ưu tiên
 

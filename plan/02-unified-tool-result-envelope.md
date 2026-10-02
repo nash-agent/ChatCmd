@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thiết kế và triển khai một result envelope thống nhất cho các tool có thể trả dữ liệu lớn. Mục tiêu là để LLM biết chính xác kết quả có đầy đủ hay không, tiếp tục ở đâu, giới hạn nào đã chạm và dữ liệu lớn nằm ở artifact/content reference nào. Không triển khai lại thuật toán từng tool ngoài phần tối thiểu để tích hợp contract. Không commit.
+Trong project `<repository-root>`, hãy thiết kế và triển khai một result envelope thống nhất cho các tool có thể trả dữ liệu lớn. Mục tiêu là để LLM biết chính xác kết quả có đầy đủ hay không, tiếp tục ở đâu, giới hạn nào đã chạm và dữ liệu lớn nằm ở artifact/content reference nào. Không triển khai lại thuật toán từng tool ngoài phần tối thiểu để tích hợp contract. Không commit.
 
 ## Ưu tiên
 

@@ -19,20 +19,15 @@ ChatCMD is a self-hosted bridge between MCP-compatible AI clients and your compu
 
 The core application runs on your machine. It has no ChatCMD account, subscription, payment, quota, or hosted authentication dependency. Optional features can still make outbound connections—for example to ChatGPT, a Git repository used to install a skill, a Google Font, or a tunnel address that you configure.
 
-## Download the latest release
+## Get the source
 
-<p>
-  <a href="https://github.com/int04/ChatCmd/releases/latest/download/ChatCMD-windows-x64.zip"><img alt="Download ChatCMD for Windows 64-bit" src="https://img.shields.io/badge/Download-Windows%2064--bit-0078d4?style=for-the-badge&amp;logo=windows11&amp;logoColor=white"></a>
-  <a href="https://github.com/int04/ChatCmd/releases/latest/download/ChatCMD-windows-x86.zip"><img alt="Download ChatCMD for Windows 32-bit" src="https://img.shields.io/badge/Download-Windows%2032--bit-0078d4?style=for-the-badge&amp;logo=windows11&amp;logoColor=white"></a>
-</p>
-<p>
-  <a href="https://github.com/int04/ChatCmd/releases/latest/download/ChatCMD-macos-apple-silicon.zip"><img alt="Download ChatCMD for macOS Apple Silicon" src="https://img.shields.io/badge/Download-macOS%20Apple%20Silicon-000000?style=for-the-badge&amp;logo=apple&amp;logoColor=white"></a>
-  <a href="https://github.com/int04/ChatCmd/releases/latest/download/ChatCMD-macos-intel.zip"><img alt="Download ChatCMD for macOS Intel" src="https://img.shields.io/badge/Download-macOS%20Intel-000000?style=for-the-badge&amp;logo=apple&amp;logoColor=white"></a>
-</p>
+This fork is shared as source only: [nash-agent/ChatCmd](https://github.com/nash-agent/ChatCmd).
+No prebuilt binaries are provided. The updater checks only this fork and does not fall back to upstream releases. Follow
+[Quick start from source](#quick-start-from-source) or [Build locally](#build-locally).
+To update, pull the latest source and rebuild on your own computer.
 
-[View release notes and SHA-256 checksums](https://github.com/int04/ChatCmd/releases/latest).
-
-The automated macOS packages are ad-hoc signed and are not Apple-notarized.
+Based on [int04/ChatCmd](https://github.com/int04/ChatCmd), with upstream attribution
+and the MIT license preserved.
 
 > [!CAUTION]
 > ChatCMD can expose terminals, files, Git repositories, and local processes to an AI client. Start with the smallest tool allowlist, keep approval mode enabled, review every public endpoint, and never publish a tokenized MCP URL.
@@ -175,7 +170,7 @@ For component boundaries, data flow, and security assumptions, read [docs/ARCHIT
 ## Quick start from source
 
 ```bash
-git clone https://github.com/int04/ChatCmd.git
+git clone https://github.com/nash-agent/ChatCmd.git
 cd ChatCmd/web
 npm ci
 npm run build
@@ -230,7 +225,7 @@ Default database locations:
 
 Startup is idempotent. After a restart, stale running tasks and terminal sessions are marked interrupted.
 
-## Build release artifacts
+## Build locally
 
 Create a standalone binary with the frontend embedded:
 
@@ -242,21 +237,7 @@ cd ..
 cargo build --release --features embedded-web
 ```
 
-Maintainers can use the packaging scripts:
-
-```powershell
-# Windows x64 and x86
-.\scripts\build-windows.ps1 -Version 0.1.0
-```
-
-```bash
-# macOS Apple Silicon and Intel
-CHATCMD_BUILD_VERSION=0.1.0 ./scripts/build-macos.sh
-```
-
-The macOS script supports `MACOS_SIGN_IDENTITY` and `MACOS_NOTARY_PROFILE`. Full release instructions are in [docs/RELEASING.md](docs/RELEASING.md).
-
-To publish all four packages, open **Actions → Build desktop release → Run workflow** on GitHub and select `main`. The workflow runs only when started manually, generates a `yy.MM.dd.HHmm` version, and updates the repository's latest release; pushes and pull requests do not trigger it.
+Build outputs stay on your computer; this repository does not distribute binary releases.
 
 ## Verify a change
 
@@ -283,16 +264,6 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the contributor workflow and 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <strong>Task workspace and final response</strong><br>
-      <a href="docs/images/screenshots/task-workspace.png"><img src="docs/images/screenshots/task-workspace.png" alt="ChatCMD task workspace showing a completed ChatGPT response and task details"></a>
-    </td>
-    <td width="50%" valign="top">
-      <strong>Agent activity timeline</strong><br>
-      <a href="docs/images/screenshots/agent-activity-timeline.png"><img src="docs/images/screenshots/agent-activity-timeline.png" alt="Expanded ChatCMD agent activity timeline with tool calls and progress updates"></a>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
       <strong>Side-by-side file diff</strong><br>
       <a href="docs/images/screenshots/file-diff-viewer.png"><img src="docs/images/screenshots/file-diff-viewer.png" alt="ChatCMD side-by-side source file diff viewer"></a>
     </td>
@@ -303,18 +274,8 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the contributor workflow and 
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>Completed sub-agent work</strong><br>
-      <a href="docs/images/screenshots/subagent-orchestration-complete.png"><img src="docs/images/screenshots/subagent-orchestration-complete.png" alt="ChatCMD timeline showing two completed sub-agent tasks"></a>
-    </td>
-    <td width="50%" valign="top">
       <strong>Plan question dialog</strong><br>
       <a href="docs/images/screenshots/plan-question-dialog.png"><img src="docs/images/screenshots/plan-question-dialog.png" alt="ChatCMD plan-mode question dialog with two choices and a custom answer option"></a>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <strong>Plan-mode task and approval controls</strong><br>
-      <a href="docs/images/screenshots/plan-mode-task.png"><img src="docs/images/screenshots/plan-mode-task.png" alt="ChatCMD plan-mode task with reasoning history and execution approval controls"></a>
     </td>
     <td width="50%" valign="top">
       <strong>Completed plan response</strong><br>

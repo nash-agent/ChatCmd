@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy sửa lifecycle sub-agent để một child đã chuyển sang `running` nhưng mất worker/finalizer không thể khóa parent vô hạn. Thêm lease/heartbeat/max runtime, watchdog expire, terminal state `timedOut`/`interrupted`, cancellation cleanup và xử lý race idempotent. Không commit.
+Trong project `<repository-root>`, hãy sửa lifecycle sub-agent để một child đã chuyển sang `running` nhưng mất worker/finalizer không thể khóa parent vô hạn. Thêm lease/heartbeat/max runtime, watchdog expire, terminal state `timedOut`/`interrupted`, cancellation cleanup và xử lý race idempotent. Không commit.
 
 ## Ưu tiên
 

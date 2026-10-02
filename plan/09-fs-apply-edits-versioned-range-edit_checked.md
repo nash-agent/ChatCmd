@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thêm tool `fs_apply_edits` dùng để sửa một hoặc nhiều range trong file text lớn mà không phải gửi/ghi lại toàn file. Tool bắt buộc hỗ trợ optimistic concurrency qua `expectedVersion`, validate edits không chồng lấn, dry-run và atomic commit. Giữ `fs_replace_text` tương thích nhưng định hướng nó thành adapter/legacy tool. Không commit.
+Trong project `<repository-root>`, hãy thêm tool `fs_apply_edits` dùng để sửa một hoặc nhiều range trong file text lớn mà không phải gửi/ghi lại toàn file. Tool bắt buộc hỗ trợ optimistic concurrency qua `expectedVersion`, validate edits không chồng lấn, dry-run và atomic commit. Giữ `fs_replace_text` tương thích nhưng định hướng nó thành adapter/legacy tool. Không commit.
 
 ## Ưu tiên
 

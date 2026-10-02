@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy tối ưu shell/PTY pipeline để output nhỏ lẻ được coalesce thành chunk hợp lý, replay/event storage có hard cap và backpressure, slow consumer không làm tăng RAM vô hạn. Đồng thời đặt input cap/guard để `shell_write` không bị dùng để truyền file/script lớn; caller phải dùng filesystem/blob tools. Giữ terminal tương tác realtime và sequence cursor. Không commit.
+Trong project `<repository-root>`, hãy tối ưu shell/PTY pipeline để output nhỏ lẻ được coalesce thành chunk hợp lý, replay/event storage có hard cap và backpressure, slow consumer không làm tăng RAM vô hạn. Đồng thời đặt input cap/guard để `shell_write` không bị dùng để truyền file/script lớn; caller phải dùng filesystem/blob tools. Giữ terminal tương tác realtime và sequence cursor. Không commit.
 
 ## Ưu tiên
 

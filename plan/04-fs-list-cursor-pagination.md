@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy sửa `fs_list` để làm việc ổn định với thư mục có số lượng entry rất lớn. Thay pagination `offset/limit` hiện tại bằng contract cursor có tính nhất quán, đồng thời tránh đọc, stat và sort toàn bộ directory chỉ để trả một trang nhỏ. Giữ tương thích với tool cũ trong giai đoạn migration. Không commit.
+Trong project `<repository-root>`, hãy sửa `fs_list` để làm việc ổn định với thư mục có số lượng entry rất lớn. Thay pagination `offset/limit` hiện tại bằng contract cursor có tính nhất quán, đồng thời tránh đọc, stat và sort toàn bộ directory chỉ để trả một trang nhỏ. Giữ tương thích với tool cũ trong giai đoạn migration. Không commit.
 
 ## Ưu tiên
 

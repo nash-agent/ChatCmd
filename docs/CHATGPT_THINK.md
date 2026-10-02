@@ -77,7 +77,7 @@ Extension version: **0.1.6**. Capture protocol: **2**. Background clock protocol
 
 ## Nghiên cứu repo tham chiếu
 
-Đã tham khảo D:\DEV\chat-on-steroids: docs/chatgpt-turn-signals.md, extension/chatgpt-dom.js, extension/content.js và src/main/session/recorder.ts. Áp dụng các ý: tách quan sát khỏi lifecycle, ràng buộc conversation/user turn, upsert bản ghi ổn định, giữ nội dung đã thu và ghi bền trước ACK. Không sao chép lớp Electron/Fiber/private model state. Completion hiện vẫn là heuristic DOM ổn định, nút Stop/composer và trạng thái request, không phải tín hiệu model end_turn.
+Đã tham khảo <reference-repository>: docs/chatgpt-turn-signals.md, extension/chatgpt-dom.js, extension/content.js và src/main/session/recorder.ts. Áp dụng các ý: tách quan sát khỏi lifecycle, ràng buộc conversation/user turn, upsert bản ghi ổn định, giữ nội dung đã thu và ghi bền trước ACK. Không sao chép lớp Electron/Fiber/private model state. Completion hiện vẫn là heuristic DOM ổn định, nút Stop/composer và trạng thái request, không phải tín hiệu model end_turn.
 
 ## Kiểm tra
 

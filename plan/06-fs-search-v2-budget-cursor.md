@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy nâng cấp `fs_search` để tìm nội dung hiệu quả trên repository lớn và file text lớn. Tool mới phải scan streaming, có literal/regex rõ ràng, context lines, cursor continuation, budget/cancellation và result envelope chuẩn. Giữ adapter tool cũ. Không commit.
+Trong project `<repository-root>`, hãy nâng cấp `fs_search` để tìm nội dung hiệu quả trên repository lớn và file text lớn. Tool mới phải scan streaming, có literal/regex rõ ràng, context lines, cursor continuation, budget/cancellation và result envelope chuẩn. Giữ adapter tool cũ. Không commit.
 
 ## Ưu tiên
 

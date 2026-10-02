@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::model::{ReleaseSelection, UpdateAsset, UpdateTarget};
 
-const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/int04/ChatCMD/releases/latest";
+const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/nash-agent/ChatCmd/releases/latest";
 const GITHUB_ACCEPT: &str = "application/vnd.github+json";
 const GITHUB_API_VERSION: &str = "2022-11-28";
 
@@ -224,6 +224,14 @@ fn is_sha256_hex(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_source_is_scoped_to_this_fork() {
+        let url = reqwest::Url::parse(LATEST_RELEASE_URL).expect("release API URL");
+        assert_eq!(url.scheme(), "https");
+        assert_eq!(url.host_str(), Some("api.github.com"));
+        assert_eq!(url.path(), "/repos/nash-agent/ChatCmd/releases/latest");
+    }
 
     #[test]
     fn extracts_full_build_version_from_release_notes() {

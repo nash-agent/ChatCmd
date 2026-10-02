@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Làm việc trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`. Hãy triển khai cơ chế bảo đảm tool catalog mà source khai báo, schema MCP sinh ra, binary/package release và connector đang kết nối luôn đồng nhất. Không sửa các thuật toán filesystem khác trong plan này. Không commit. Không làm mất thay đổi hiện có.
+Làm việc trong project `<repository-root>`. Hãy triển khai cơ chế bảo đảm tool catalog mà source khai báo, schema MCP sinh ra, binary/package release và connector đang kết nối luôn đồng nhất. Không sửa các thuật toán filesystem khác trong plan này. Không commit. Không làm mất thay đổi hiện có.
 
 ## Ưu tiên
 

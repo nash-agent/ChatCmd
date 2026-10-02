@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thiết kế lại persistence/realtime pipeline của tool call để không clone, serialize, lưu và phát nguyên full input/output/content/Base64/diff lớn. Tạo typed summary/redaction/externalization policy, dùng artifact/content reference cho dữ liệu vượt ngưỡng. Giữ UI timeline hữu ích và tương thích dữ liệu cũ. Không commit.
+Trong project `<repository-root>`, hãy thiết kế lại persistence/realtime pipeline của tool call để không clone, serialize, lưu và phát nguyên full input/output/content/Base64/diff lớn. Tạo typed summary/redaction/externalization policy, dùng artifact/content reference cho dữ liệu vượt ngưỡng. Giữ UI timeline hữu ích và tương thích dữ liệu cũ. Không commit.
 
 ## Ưu tiên
 

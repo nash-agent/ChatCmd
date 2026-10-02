@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thiết kế và triển khai cơ chế truyền nội dung lớn ngoài JSON arguments, dùng blob/content reference theo chunk. Sau thay đổi, `fs_write_text`, `fs_write_raw`, `fs_apply_edits` và artifact flow phải có thể nhận `contentRef` thay cho toàn bộ content/Base64 inline. Giữ inline mode cho payload nhỏ. Không commit và không làm mất thay đổi hiện có.
+Trong project `<repository-root>`, hãy thiết kế và triển khai cơ chế truyền nội dung lớn ngoài JSON arguments, dùng blob/content reference theo chunk. Sau thay đổi, `fs_write_text`, `fs_write_raw`, `fs_apply_edits` và artifact flow phải có thể nhận `contentRef` thay cho toàn bộ content/Base64 inline. Giữ inline mode cho payload nhỏ. Không commit và không làm mất thay đổi hiện có.
 
 ## Ưu tiên
 

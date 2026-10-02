@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy sửa `git_status`, `git_diff`, `git_log`, `git_branch`, `git_show` và các bước subprocess của `git_commit` để không gom stdout/stderr vô hạn bằng `Command::output()`. Tạo process runner streaming có hard limits, timeout, cancellation, kill process tree và artifact/reference cho output lớn. Không commit.
+Trong project `<repository-root>`, hãy sửa `git_status`, `git_diff`, `git_log`, `git_branch`, `git_show` và các bước subprocess của `git_commit` để không gom stdout/stderr vô hạn bằng `Command::output()`. Tạo process runner streaming có hard limits, timeout, cancellation, kill process tree và artifact/reference cho output lớn. Không commit.
 
 ## Ưu tiên
 

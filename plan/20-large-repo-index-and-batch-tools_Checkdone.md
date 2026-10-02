@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thiết kế và triển khai lớp repository index tăng dần cùng các batch tools để giảm việc quét lại toàn monorepo và giảm số round-trip MCP. Index chỉ là accelerator; correctness phải có stale detection và fallback trực tiếp. Ưu tiên path/content metadata trước, symbol index để phase sau nếu phạm vi quá lớn. Không commit.
+Trong project `<repository-root>`, hãy thiết kế và triển khai lớp repository index tăng dần cùng các batch tools để giảm việc quét lại toàn monorepo và giảm số round-trip MCP. Index chỉ là accelerator; correctness phải có stale detection và fallback trực tiếp. Ưu tiên path/content metadata trước, symbol index để phase sau nếu phạm vi quá lớn. Không commit.
 
 ## Ưu tiên
 

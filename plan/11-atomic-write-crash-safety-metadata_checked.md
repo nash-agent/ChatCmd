@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy viết lại lớp atomic writer dùng chung cho `fs_write_text`, `fs_write_raw`, `fs_apply_edits` và blob consume. Mục tiêu là không có khoảng trống target khi overwrite, không để file dở sau lỗi/crash, hỗ trợ `expectedVersion`, bảo toàn metadata theo policy và có durability mode rõ ràng trên macOS/Linux/Windows. Không commit.
+Trong project `<repository-root>`, hãy viết lại lớp atomic writer dùng chung cho `fs_write_text`, `fs_write_raw`, `fs_apply_edits` và blob consume. Mục tiêu là không có khoảng trống target khi overwrite, không để file dở sau lỗi/crash, hỗ trợ `expectedVersion`, bảo toàn metadata theo policy và có durability mode rõ ràng trên macOS/Linux/Windows. Không commit.
 
 ## Ưu tiên
 

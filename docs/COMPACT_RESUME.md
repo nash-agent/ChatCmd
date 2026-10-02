@@ -10,7 +10,7 @@ The sidebar's **Lịch sử thu gọn ngữ cảnh**, directly below execution p
 
 ## Reference behavior
 
-The implementation was studied against these files in `D:\DEV\chat-on-steroids` (read only):
+The implementation was studied against these files in `<reference-repository>` (read only):
 
 - `src/main/session/continuation.ts`
 - `src/main/session/handoff.ts` and `handoff-prompt.ts`

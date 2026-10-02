@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy nâng cấp `fs_stat` để trả một version token đáng tin cậy cho optimistic concurrency và metadata đủ cho read/edit/write an toàn. Không biến `fs_stat` mặc định thành thao tác hash toàn file đắt đỏ; hỗ trợ nhiều mức strength và budget rõ ràng. Không sửa range edit ngoài điểm tích hợp. Không commit.
+Trong project `<repository-root>`, hãy nâng cấp `fs_stat` để trả một version token đáng tin cậy cho optimistic concurrency và metadata đủ cho read/edit/write an toàn. Không biến `fs_stat` mặc định thành thao tác hash toàn file đắt đỏ; hỗ trợ nhiều mức strength và budget rõ ràng. Không sửa range edit ngoài điểm tích hợp. Không commit.
 
 ## Ưu tiên
 

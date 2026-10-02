@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy viết lại `fs_find` để tìm file/folder hiệu quả trên monorepo lớn. Tool phải dùng traversal có ignore rules thống nhất, dừng thật khi đủ kết quả/budget, hỗ trợ cursor continuation và cancellation. Không sửa `fs_search` ngoài abstraction dùng chung. Không commit.
+Trong project `<repository-root>`, hãy viết lại `fs_find` để tìm file/folder hiệu quả trên monorepo lớn. Tool phải dùng traversal có ignore rules thống nhất, dừng thật khi đủ kết quả/budget, hỗ trợ cursor continuation và cancellation. Không sửa `fs_search` ngoài abstraction dùng chung. Không commit.
 
 ## Ưu tiên
 

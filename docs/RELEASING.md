@@ -1,5 +1,9 @@
 # Release guide
 
+> This fork is distributed as source only. No binary releases are provided; the updater checks
+> only this fork and treats missing releases as no available update. Use the source build instructions in the root README.
+> The packaging instructions below document optional inherited maintainer tooling.
+
 This guide is for maintainers preparing source and desktop releases.
 
 ## 1. Prepare the release

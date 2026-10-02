@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy xây một bộ test/benchmark có thể chứng minh các filesystem, Git, shell, persistence và orchestration tools hoạt động an toàn dưới tải lớn và tình huống đối kháng. Không chỉ thêm unit test happy-path; cần fixture generators, fault injection, concurrency barriers, packaged-binary smoke tests và CI tiers. Không sửa thuật toán production ngoài các seam tối thiểu phục vụ testability. Không commit.
+Trong project `<repository-root>`, hãy xây một bộ test/benchmark có thể chứng minh các filesystem, Git, shell, persistence và orchestration tools hoạt động an toàn dưới tải lớn và tình huống đối kháng. Không chỉ thêm unit test happy-path; cần fixture generators, fault injection, concurrency barriers, packaged-binary smoke tests và CI tiers. Không sửa thuật toán production ngoài các seam tối thiểu phục vụ testability. Không commit.
 
 ## Ưu tiên
 

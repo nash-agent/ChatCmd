@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy xây một framework dùng chung để giới hạn tài nguyên và hủy tác vụ dài: timeout, bytes read/written, files/entries scanned, output bytes, process runtime, open files, memory reservations và progress rate. Migrate các tool filesystem traversal/mutation, Git và artifact/blob sang framework này. Không commit.
+Trong project `<repository-root>`, hãy xây một framework dùng chung để giới hạn tài nguyên và hủy tác vụ dài: timeout, bytes read/written, files/entries scanned, output bytes, process runtime, open files, memory reservations và progress rate. Migrate các tool filesystem traversal/mutation, Git và artifact/blob sang framework này. Không commit.
 
 ## Ưu tiên
 

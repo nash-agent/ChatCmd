@@ -3,7 +3,7 @@
 > Trạng thái triển khai: **IMPLEMENTED_AUTOMATED_ONLY / LIVE_VALIDATION_BLOCKED**.
 > Ngày triển khai: **2026-09-05**. Baseline triển khai thực tế: nhánh `dev`, commit `f8ea45f139e3ea9c3886f726c42030aab3d64d7f`; giữ nguyên thay đổi người dùng, chưa commit.
 > Ngày lập: **2026-09-05**. Baseline đối chiếu: nhánh `dev`, commit `983f360`.
-> Repo: `/Users/ducnghia/Downloads/dev/ChatCmdClient`.
+> Repo: `<repository-root>`.
 > Phạm vi lượt tạo tài liệu: chỉ tạo `plan/coding.md`; không sửa source, không commit.
 
 Tài liệu này phải đủ để AI tiếp tục trong một cuộc trò chuyện mới. Trước khi triển khai, đọc toàn bộ plan, kiểm tra lại working tree và source hiện tại. Đường dẫn/symbol hiện hữu bên dưới là điểm bắt đầu đã được kiểm tra; đường dẫn đánh dấu **đề xuất mới** chưa phải file đã tồn tại. Số dòng từ audit chỉ có giá trị tại baseline, không dùng làm tọa độ patch.

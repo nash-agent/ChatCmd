@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy thiết kế lại các mutation đệ quy `fs_copy`, `fs_move`, `fs_delete` để an toàn trên cây lớn, chịu được cancellation/crash, chống symlink/TOCTOU và báo chính xác trạng thái partial. Thêm preflight/dry-run, conflict policy, operation journal và rollback/best-effort cleanup. Không commit.
+Trong project `<repository-root>`, hãy thiết kế lại các mutation đệ quy `fs_copy`, `fs_move`, `fs_delete` để an toàn trên cây lớn, chịu được cancellation/crash, chống symlink/TOCTOU và báo chính xác trạng thái partial. Thêm preflight/dry-run, conflict policy, operation journal và rollback/best-effort cleanup. Không commit.
 
 ## Ưu tiên
 

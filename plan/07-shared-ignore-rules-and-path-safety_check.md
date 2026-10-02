@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy tạo một abstraction dùng chung cho workspace traversal/ignore và audit rồi gia cố toàn bộ path authorization của filesystem tools. Mọi absolute/relative path phải được xác thực theo workspace root hoặc task-scoped explicit path grant; không dựa vào việc path là absolute để bỏ qua kiểm tra. Chống symlink swap/TOCTOU cho read và mutation trong phạm vi thực tế của các nền tảng hỗ trợ. Không commit.
+Trong project `<repository-root>`, hãy tạo một abstraction dùng chung cho workspace traversal/ignore và audit rồi gia cố toàn bộ path authorization của filesystem tools. Mọi absolute/relative path phải được xác thực theo workspace root hoặc task-scoped explicit path grant; không dựa vào việc path là absolute để bỏ qua kiểm tra. Chống symlink swap/TOCTOU cho read và mutation trong phạm vi thực tế của các nền tảng hỗ trợ. Không commit.
 
 ## Ưu tiên
 

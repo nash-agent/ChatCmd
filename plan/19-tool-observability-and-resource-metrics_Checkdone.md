@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy xây observability thống nhất cho toàn bộ tool runtime: structured tracing spans, counters/histograms, per-operation resource usage, diagnostics endpoint và correlation task/turn/request/session. Tuyệt đối không log file content, Base64, command input nhạy cảm, token hoặc private conversation scope. Không commit.
+Trong project `<repository-root>`, hãy xây observability thống nhất cho toàn bộ tool runtime: structured tracing spans, counters/histograms, per-operation resource usage, diagnostics endpoint và correlation task/turn/request/session. Tuyệt đối không log file content, Base64, command input nhạy cảm, token hoặc private conversation scope. Không commit.
 
 ## Ưu tiên
 

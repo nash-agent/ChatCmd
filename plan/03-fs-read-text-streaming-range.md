@@ -2,7 +2,7 @@
 
 ## Nhiệm vụ dùng cho chat mới
 
-Trong project `/Users/ducnghia/Downloads/dev/ChatCmdClient`, hãy sửa `fs_read_text` để đọc file lớn theo range thực sự, không tải toàn file vào RAM rồi mới cắt. Giữ contract cũ tương thích trong giai đoạn chuyển tiếp và bổ sung contract mới nếu cần. Không sửa các tool mutation ngoài phần dùng chung metadata/version. Không commit.
+Trong project `<repository-root>`, hãy sửa `fs_read_text` để đọc file lớn theo range thực sự, không tải toàn file vào RAM rồi mới cắt. Giữ contract cũ tương thích trong giai đoạn chuyển tiếp và bổ sung contract mới nếu cần. Không sửa các tool mutation ngoài phần dùng chung metadata/version. Không commit.
 
 ## Ưu tiên
 

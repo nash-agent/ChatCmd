@@ -19,20 +19,15 @@ ChatCMD là một cầu nối tự host giữa các AI client tương thích MCP
 
 Ứng dụng lõi chạy trực tiếp trên máy của bạn. ChatCMD không yêu cầu tài khoản ChatCMD, subscription, thanh toán, quota hay hệ thống xác thực hosted. Một số tính năng tùy chọn vẫn có thể kết nối ra ngoài, ví dụ ChatGPT, Git repository dùng để cài skill, Google Font hoặc tunnel address do bạn cấu hình.
 
-## Tải bản phát hành mới nhất
+## Lấy mã nguồn
 
-<p>
-  <a href="https://github.com/int04/ChatCmd/releases/latest/download/ChatCMD-windows-x64.zip"><img alt="Tải ChatCMD cho Windows 64-bit" src="https://img.shields.io/badge/Download-Windows%2064--bit-0078d4?style=for-the-badge&amp;logo=windows11&amp;logoColor=white"></a>
-  <a href="https://github.com/int04/ChatCmd/releases/latest/download/ChatCMD-windows-x86.zip"><img alt="Tải ChatCMD cho Windows 32-bit" src="https://img.shields.io/badge/Download-Windows%2032--bit-0078d4?style=for-the-badge&amp;logo=windows11&amp;logoColor=white"></a>
-</p>
-<p>
-  <a href="https://github.com/int04/ChatCmd/releases/latest/download/ChatCMD-macos-apple-silicon.zip"><img alt="Tải ChatCMD cho macOS Apple Silicon" src="https://img.shields.io/badge/Download-macOS%20Apple%20Silicon-000000?style=for-the-badge&amp;logo=apple&amp;logoColor=white"></a>
-  <a href="https://github.com/int04/ChatCmd/releases/latest/download/ChatCMD-macos-intel.zip"><img alt="Tải ChatCMD cho macOS Intel" src="https://img.shields.io/badge/Download-macOS%20Intel-000000?style=for-the-badge&amp;logo=apple&amp;logoColor=white"></a>
-</p>
+Fork này chỉ chia sẻ mã nguồn: [nash-agent/ChatCmd](https://github.com/nash-agent/ChatCmd).
+Không cung cấp binary dựng sẵn. Updater chỉ kiểm tra fork này và không chuyển sang release của upstream. Xem
+[Chạy nhanh từ source](#chạy-nhanh-từ-source) hoặc [Build cục bộ](#build-cục-bộ).
+Để cập nhật, lấy mã nguồn mới nhất và build lại trên máy của bạn.
 
-[Xem release notes và mã SHA-256](https://github.com/int04/ChatCmd/releases/latest).
-
-Các gói macOS được build tự động hiện dùng ad-hoc signing và chưa được Apple notarize.
+Dựa trên [int04/ChatCmd](https://github.com/int04/ChatCmd), giữ nguyên ghi nhận
+đóng góp upstream và giấy phép MIT.
 
 > [!CAUTION]
 > ChatCMD có thể cho AI client quyền truy cập terminal, file, Git repository và process cục bộ. Hãy bắt đầu với allowlist tool nhỏ nhất có thể, giữ chế độ phê duyệt bật, kiểm tra kỹ mọi public endpoint và tuyệt đối không công khai MCP URL có token.
@@ -175,7 +170,7 @@ flowchart LR
 ## Chạy nhanh từ source
 
 ```bash
-git clone https://github.com/int04/ChatCmd.git
+git clone https://github.com/nash-agent/ChatCmd.git
 cd ChatCmd/web
 npm ci
 npm run build
@@ -230,7 +225,7 @@ Vị trí database mặc định:
 
 Startup có tính idempotent. Sau khi restart, các task và terminal session đang chạy nhưng đã stale sẽ được đánh dấu interrupted.
 
-## Build release artifact
+## Build cục bộ
 
 Tạo standalone binary với frontend được embed:
 
@@ -242,21 +237,7 @@ cd ..
 cargo build --release --features embedded-web
 ```
 
-Maintainer có thể dùng các packaging script:
-
-```powershell
-# Windows x64 và x86
-.\scripts\build-windows.ps1 -Version 0.1.0
-```
-
-```bash
-# macOS Apple Silicon và Intel
-CHATCMD_BUILD_VERSION=0.1.0 ./scripts/build-macos.sh
-```
-
-Script macOS hỗ trợ `MACOS_SIGN_IDENTITY` và `MACOS_NOTARY_PROFILE`. Hướng dẫn release đầy đủ nằm trong [docs/RELEASING.md](docs/RELEASING.md).
-
-Để publish đủ bốn package, mở **Actions → Build desktop release → Run workflow** trên GitHub và chọn `main`. Workflow chỉ chạy khi được kích hoạt thủ công, tự tạo version dạng `yy.MM.dd.HHmm` và cập nhật latest release của repository; push và pull request không tự trigger workflow này.
+Kết quả build được giữ trên máy của bạn; repository này không phân phối binary release.
 
 ## Kiểm tra một thay đổi
 
@@ -283,16 +264,6 @@ Xem [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) để biết contributor workflow
 <table>
   <tr>
     <td width="50%" valign="top">
-      <strong>Task workspace và phản hồi cuối</strong><br>
-      <a href="docs/images/screenshots/task-workspace.png"><img src="docs/images/screenshots/task-workspace.png" alt="ChatCMD task workspace hiển thị phản hồi ChatGPT đã hoàn tất và chi tiết task"></a>
-    </td>
-    <td width="50%" valign="top">
-      <strong>Timeline hoạt động của agent</strong><br>
-      <a href="docs/images/screenshots/agent-activity-timeline.png"><img src="docs/images/screenshots/agent-activity-timeline.png" alt="Timeline hoạt động agent của ChatCMD được mở rộng với tool call và progress update"></a>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
       <strong>File diff song song</strong><br>
       <a href="docs/images/screenshots/file-diff-viewer.png"><img src="docs/images/screenshots/file-diff-viewer.png" alt="Trình xem source file diff song song của ChatCMD"></a>
     </td>
@@ -303,18 +274,8 @@ Xem [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) để biết contributor workflow
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>Công việc Sub-Agent đã hoàn tất</strong><br>
-      <a href="docs/images/screenshots/subagent-orchestration-complete.png"><img src="docs/images/screenshots/subagent-orchestration-complete.png" alt="Timeline ChatCMD hiển thị hai Sub-Agent task đã hoàn tất"></a>
-    </td>
-    <td width="50%" valign="top">
       <strong>Dialog câu hỏi trong Plan mode</strong><br>
       <a href="docs/images/screenshots/plan-question-dialog.png"><img src="docs/images/screenshots/plan-question-dialog.png" alt="Dialog câu hỏi Plan mode của ChatCMD với hai lựa chọn và tùy chọn câu trả lời tùy chỉnh"></a>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <strong>Task Plan mode và approval control</strong><br>
-      <a href="docs/images/screenshots/plan-mode-task.png"><img src="docs/images/screenshots/plan-mode-task.png" alt="ChatCMD task trong Plan mode với reasoning history và execution approval control"></a>
     </td>
     <td width="50%" valign="top">
       <strong>Phản hồi plan đã hoàn tất</strong><br>
