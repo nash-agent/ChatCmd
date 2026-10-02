@@ -1,8 +1,5 @@
 # ChatCMD
 
-> [!NOTE]
-> This branch contains the `nash-agent` Astra Workspace custom build. For the reproducible Windows package, browser-extension step, per-PC credentials, and PC2 acceptance checklist, see [CUSTOM_SETUP.md](CUSTOM_SETUP.md).
-
 <p align="center">
   <img src="assets/icons/logo-transparent-master-1254.png" alt="ChatCMD logo" title="ChatCMD" width="420">
 </p>
@@ -21,6 +18,12 @@
 ChatCMD is a self-hosted bridge between MCP-compatible AI clients and your computer. It combines a Rust server, a permission-scoped machine runtime, SQLite persistence, a React management console, and an optional Chromium extension for working with ChatGPT in the browser.
 
 The core application runs on your machine. It has no ChatCMD account, subscription, payment, quota, or hosted authentication dependency. Optional features can still make outbound connections—for example to ChatGPT, a Git repository used to install a skill, a Google Font, or a tunnel address that you configure.
+
+### This fork / 이 포크 사용
+
+Use the existing ChatCMD installation and usage instructions in this README. For ChatGPT integration, follow [docs/PLUGIN_SETUP.md](docs/PLUGIN_SETUP.md) and [chatgpt-extension/README.md](chatgpt-extension/README.md). This fork does not add a separate installer.
+
+설치와 기본 사용은 아래 기존 ChatCMD 설명을 그대로 따르면 됩니다. ChatGPT 연동은 [docs/PLUGIN_SETUP.md](docs/PLUGIN_SETUP.md)와 [chatgpt-extension/README.md](chatgpt-extension/README.md)를 따르면 됩니다. 이 포크 전용 설치 스크립트는 두지 않습니다.
 
 ## Download the latest release
 
