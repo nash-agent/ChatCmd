@@ -188,16 +188,38 @@ fn child_task_id_for_subagent(subagent_id: &str) -> String {
     format!("task-{subagent_id}")
 }
 
-fn extract_subagent_id(message: &str) -> Option<String> {
-    message.lines().find_map(|line| {
-        let marker = line.find(SUBAGENT_MARKER_PREFIX)?;
-        let tail = &line[marker + SUBAGENT_MARKER_PREFIX.len()..];
-        let id = tail
+fn extract_subagent_id(message: &str) -> RuntimeResult<Option<String>> {
+    if !message.contains(SUBAGENT_MARKER_PREFIX) {
+        return Ok(None);
+    }
+    // A routing marker is a transport envelope, never quoted task data. In
+    // particular, do not silently route a re-delegated prompt to its old child.
+    if message.matches(SUBAGENT_MARKER_PREFIX).count() != 1 {
+        return Err(RuntimeError::new(
+            "invalid_subagent_marker",
+            "ambiguous delegated child markers",
+        ));
+    }
+    let line = message
+        .lines()
+        .find(|line| line.contains(SUBAGENT_MARKER_PREFIX))
+        .unwrap_or_default()
+        .trim();
+    let id = line
+        .strip_prefix(SUBAGENT_MARKER_PREFIX)
+        .unwrap_or_default();
+    if !id.starts_with("subagent-")
+        || id.len() <= "subagent-".len()
+        || !id
             .chars()
-            .take_while(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
-            .collect::<String>();
-        id.starts_with("subagent-").then_some(id)
-    })
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+    {
+        return Err(RuntimeError::new(
+            "invalid_subagent_marker",
+            "invalid delegated child marker",
+        ));
+    }
+    Ok(Some(id.to_owned()))
 }
 
 #[cfg(test)]
@@ -240,13 +262,33 @@ mod tests {
         assert_eq!(
             extract_subagent_id(
                 "Please inspect this.\nCMDGPT_SUBAGENT_ID=subagent-1234-abcd\nKeep going."
-            ),
+            )
+            .unwrap(),
             Some("subagent-1234-abcd".to_owned())
         );
     }
 
     #[test]
     fn ignores_unrelated_text() {
-        assert_eq!(extract_subagent_id("normal delegated request"), None);
+        assert!(
+            extract_subagent_id("normal delegated request")
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn rejects_ambiguous_and_embedded_routing_markers() {
+        for message in [
+            "CMDGPT_SUBAGENT_ID=subagent-old\nCMDGPT_SUBAGENT_ID=subagent-new",
+            "CMDGPT_SUBAGENT_ID=subagent-same\nCMDGPT_SUBAGENT_ID=subagent-same",
+            "quoted CMDGPT_SUBAGENT_ID=subagent-old",
+            "CMDGPT_SUBAGENT_ID=subagent-",
+        ] {
+            assert_eq!(
+                extract_subagent_id(message).unwrap_err().code,
+                "invalid_subagent_marker"
+            );
+        }
     }
 }

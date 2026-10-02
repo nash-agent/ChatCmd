@@ -11,6 +11,7 @@ const CHATGPT_HOME = 'https://chatgpt.com/';
 importScripts('background-io.js', 'background-tabs.js', 'approval-bridge.js', 'background-recovery.js', 'background-capture.js', 'background-clock.js', 'background-subagent-heartbeat.js', 'compact-protocol.js', 'background-compact-destination.js', 'background-compact.js');
 importScripts('background-visual.js');
 importScripts('background-image.js');
+importScripts('background-subagent-failure.js');
 setTimeout(() => void recoverContentScriptsOnStartup(), 200);
 void reconcileOpenChatGptIdentities();
 
@@ -55,12 +56,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'subagent-send') {
       try {
         const localBaseUrl = localOrigin(message.localBaseUrl);
+        if (!message.subagentId || !message.childTaskId || !message.submittedContent
+          || !Number.isInteger(Number(message.attempt)) || Number(message.attempt) < 1 || Number(message.attempt) > 3) {
+          throw new Error('Invalid sub-agent fallback request.');
+        }
         void startSubagentRequest({ ...message, localBaseUrl })
           .catch((error) => void reportSubagentFailure(message.subagentId, message.attempt, localBaseUrl, error)
             .catch((reportError) => console.warn('Failed to report sub-agent startup error:', reportError)));
         // Acknowledge receipt before opening and waiting for the ChatGPT tab.
         // Startup failures are reported through fallback/result, fenced by attempt.
-        sendResponse({ ok: true });
+        sendResponse({ ok: true, accepted: true });
       } catch (error) { sendResponse({ ok: false, error: errorMessage(error) }); }
       return false;
     }
@@ -199,8 +204,12 @@ async function startSubagentRequestOnce(message) {
   if (!state.active || state.status !== 'pending') return;
   if (existing) await closeSubagentRequest(message.subagentId, existing.attempt);
 
-  const target = normalizeNewConversationUrl(message.newConversationUrl);
-  const tab = await chrome.tabs.create({ url: target, active: false });
+  const target = message.conversationUrl
+    ? await conversationTarget(message.conversationUrl)
+    : normalizeNewConversationUrl(message.newConversationUrl);
+  const tab = message.conversationUrl
+    ? await openConversationTab(target)
+    : await chrome.tabs.create({ url: target, active: false });
   if (!tab?.id) throw new Error('Could not open a ChatGPT tab for the sub-agent.');
   const requestId = `subagent:${message.subagentId}:${attempt}`;
   await chrome.storage.session.set({
@@ -211,12 +220,16 @@ async function startSubagentRequestOnce(message) {
       subagentId: message.subagentId,
       childTaskId: message.childTaskId,
       attempt,
-      conversationUrl: null,
+      conversationUrl: message.conversationUrl ? target : null,
     },
     [subagentKey]: { requestId, tabId: tab.id, attempt },
   });
   await waitForTab(tab.id);
   await waitForChatGptReady(tab.id);
+  // Loading can outlive stop, claim or retry. Never submit work on a stale startup.
+  const current = await postJson(message.localBaseUrl, `/api/local/subagents/${encodeURIComponent(message.subagentId)}/fallback/heartbeat`, { attempt });
+  if (!current.active || current.status !== 'pending'
+    || (Number.isInteger(current.attempt) && current.attempt !== attempt)) return;
   await sendToChatGpt(tab.id, {
     type: 'chatcmd-chatgpt-run',
     requestId,
@@ -262,28 +275,7 @@ async function closeSubagentRequestOnce(subagentId, expectedAttempt) {
 }
 
 async function reportSubagentFailure(subagentId, attempt, localBaseUrl, error) {
-  if (!subagentId || !attempt || !localBaseUrl) return;
-  const key = `${SUBAGENT_PREFIX}${subagentId}`;
-  try {
-    const stored = await chrome.storage.session.get(key);
-    const binding = stored[key];
-    if (binding && Number(binding.attempt) !== Number(attempt)) return;
-    const requestId = binding?.requestId || `subagent:${subagentId}:${Number(attempt)}`;
-    await releaseRequest(requestId);
-    await chrome.storage.session.remove(key);
-    if (binding?.tabId && await safeTab(binding.tabId)) {
-      try { await chrome.tabs.remove(binding.tabId); } catch { /* tab already closed */ }
-    }
-  } catch (cleanupError) {
-    console.warn('Failed to clean up sub-agent startup:', cleanupError);
-  }
-  try {
-    await postJson(localBaseUrl, `/api/local/subagents/${encodeURIComponent(subagentId)}/fallback/result`, {
-      attempt: Number(attempt),
-      status: 'failed',
-      errorMessage: errorMessage(error),
-    });
-  } catch { /* the local app may already be closed */ }
+  return settleSubagentStartupFailure(subagentId, attempt, localBaseUrl, error);
 }
 
 async function stopRequest(message) {

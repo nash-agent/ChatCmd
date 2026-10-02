@@ -270,12 +270,15 @@ impl RuntimeHost {
                 .await
                 .map_err(storage_error)?;
         }
-        if delegated_task.is_none() && provider_scope.is_some() && allow_execute == Some(true) {
+        // A claimed browser child must retain its task identity on subsequent
+        // calls that omit taskId. Otherwise they bootstrap an unrelated root
+        // task and evade the server's child policy.
+        self.claim_subagent_from_message(context, task_id.as_str(), first_user_message)
+            .await?;
+        if provider_scope.is_some() {
             self.bind_provider_scope_to_task(context, task_id.as_str())
                 .await?;
         }
-        self.claim_subagent_from_message(context, task_id.as_str(), first_user_message)
-            .await?;
         self.repository
             .upsert_task_session(&TaskSession {
                 task_id: task_id.clone(),

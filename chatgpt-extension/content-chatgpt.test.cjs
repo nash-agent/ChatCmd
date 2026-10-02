@@ -288,7 +288,7 @@ test('content scripts load helpers before the request runner', () => {
 test('new project tabs wait for a stable ChatGPT composer before sending', () => {
   assert.match(backgroundIoSource, /async function waitForChatGptReady/);
   assert.match(backgroundTabsSource, /await waitForTab\(tab\.id\);\s*await waitForChatGptReady\(tab\.id\);\s*return tab;/);
-  assert.match(backgroundSource, /await waitForTab\(tab\.id\);\s*await waitForChatGptReady\(tab\.id\);\s*await sendToChatGpt\(tab\.id,/);
+  assert.match(backgroundSource, /await waitForTab\(tab\.id\);\s*await waitForChatGptReady\(tab\.id\);[\s\S]*?const current = await postJson[\s\S]*?if \(!current\.active[\s\S]*?await sendToChatGpt\(tab\.id,/);
 });
 
 test('all extension sources stay within the 500-line maintenance limit', () => {

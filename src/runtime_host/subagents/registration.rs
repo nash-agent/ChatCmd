@@ -1,6 +1,19 @@
 use super::*;
 
 impl RuntimeHost {
+    pub(in crate::runtime_host) async fn is_browser_subagent_task(
+        &self,
+        task_id: &str,
+    ) -> RuntimeResult<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM subagent_runs WHERE child_task_id=? AND fallback_state <> 'none')",
+        )
+        .bind(task_id)
+        .fetch_one(self.repository.pool())
+        .await
+        .map_err(|_| RuntimeError::new("storage_error", "sub-agent parent policy unavailable"))
+    }
+
     pub(in crate::runtime_host) async fn register_subagent(
         &self,
         context: &OperationContext,
@@ -12,6 +25,12 @@ impl RuntimeHost {
         let parent_turn_id = required_context_value(context.turn_id.as_deref(), "turnId")?;
         let name = validate_text("name", name, MAX_SUBAGENT_NAME_CHARS)?;
         let request = validate_text("request", request, MAX_SUBAGENT_REQUEST_CHARS)?;
+        if request.contains(SUBAGENT_MARKER_PREFIX) {
+            return Err(RuntimeError::new(
+                "invalid_subagent_request",
+                "Delegation requests must contain only the new objective, not a child routing marker or a copied child envelope.",
+            ));
+        }
         validate_subagent_approval_request(approval_grant)?;
         let approval_grant_json = approval_grant
             .map(serde_json::to_string)
@@ -40,6 +59,16 @@ impl RuntimeHost {
                 return Err(RuntimeError::new(
                     "subagents_disabled",
                     "Sub-agents are disabled (Settings > Execution > Sub-agent count = 0). Continue in the main conversation.",
+                ));
+            }
+            // Browser children have the ordinary MCP catalog, unlike sampling
+            // children whose agent_* tools are removed. Enforce their leaf role
+            // against durable server identity before retry or slot admission.
+            let browser_child = self.is_browser_subagent_task(parent_task_id).await?;
+            if browser_child {
+                return Err(RuntimeError::new(
+                    "subagent_delegation_forbidden",
+                    "Browser child agents must complete their delegated objective directly and cannot create further children.",
                 ));
             }
             if let Some(row) =
@@ -196,7 +225,7 @@ impl RuntimeHost {
         context: &OperationContext,
         first_user_message: Option<&str>,
     ) -> RuntimeResult<Option<String>> {
-        let Some(subagent_id) = first_user_message.and_then(extract_subagent_id) else {
+        let Some(subagent_id) = extract_subagent_id(first_user_message.unwrap_or_default())? else {
             return Ok(None);
         };
         let row = sqlx::query("SELECT r.child_task_id FROM subagent_runs r JOIN tasks parent ON parent.id=r.parent_task_id WHERE r.id=? AND parent.agent_id=? LIMIT 1")
@@ -223,7 +252,7 @@ impl RuntimeHost {
         child_task_id: &str,
         first_user_message: Option<&str>,
     ) -> RuntimeResult<()> {
-        let Some(subagent_id) = first_user_message.and_then(extract_subagent_id) else {
+        let Some(subagent_id) = extract_subagent_id(first_user_message.unwrap_or_default())? else {
             return Ok(());
         };
         let row = sqlx::query("SELECT r.parent_task_id,r.parent_turn_id,r.name,r.child_task_id,r.status AS registered_status,r.fallback_state,r.max_runtime_ms,r.requested_approval_grant_json FROM subagent_runs r JOIN tasks parent ON parent.id=r.parent_task_id WHERE r.id=? AND parent.agent_id=? LIMIT 1")

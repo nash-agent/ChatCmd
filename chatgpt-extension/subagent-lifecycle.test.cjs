@@ -141,6 +141,7 @@ test('sub-agent dispatch acknowledges before a slow tab is ready and reports a l
   });
   vm.runInContext(`globalThis.dispatch = (message, sendResponse) => { ${body} };`, c);
   const returned = c.dispatch({ action: 'subagent-send', subagentId: 'id', attempt: 1,
+    childTaskId: 'task-id', submittedContent: 'Read a file',
     localBaseUrl: 'http://localhost:8080' }, (response) => responses.push(response));
   assert.equal(returned, false);
   assert.equal(responses.length, 1);
@@ -169,6 +170,7 @@ test('a late startup failure cannot remove or fail a newer attempt', async () =>
     console,
   });
   vm.runInContext(body, c);
+  vm.runInContext(source('background-subagent-failure.js'), c);
   await c.reportSubagentFailure('id', 1, 'http://localhost:8080', new Error('late'));
   assert.equal(cleanupCalls, 0);
 });

@@ -4,6 +4,7 @@ import { closeSubagentFallbackTab, dispatchSubagentFallback } from '../chatgptBr
 import { useRealtime } from '../realtime';
 import type { TimelineEvent } from '../types';
 import { canonicalProjectPath } from './workspaceProjects';
+import { ChatGptBridgeTimeoutError } from '../chatgpt/bridgeErrors';
 
 export function GlobalSubagentFallbackBridge() {
   const inFlight = useRef(new Set<string>());
@@ -15,7 +16,7 @@ export function GlobalSubagentFallbackBridge() {
     inFlight.current.add(key);
     try {
       let newConversationUrl: string | undefined;
-      if (fallback.projectFolder) {
+      if (!fallback.conversationUrl && fallback.projectFolder) {
         const projects = await api.workspaceProjects();
         newConversationUrl = projects.find((project) => canonicalProjectPath(project.path) === canonicalProjectPath(fallback.projectFolder ?? ''))?.chatGptProjectUrl?.trim() || undefined;
       }
@@ -25,10 +26,19 @@ export function GlobalSubagentFallbackBridge() {
         childTaskId: fallback.childTaskId,
         submittedContent: fallback.submittedContent,
         attempt: fallback.attempt,
+        conversationUrl: fallback.conversationUrl ?? undefined,
         effort: settings.subagentEffort,
         newConversationUrl,
       });
     } catch (error) {
+      if (error instanceof ChatGptBridgeTimeoutError) {
+        // A missing ACK does not prove startup failed. Advancing the attempt
+        // here can create another conversation while the first is still live.
+        console.warn('[ChatCMD] Subagent dispatch acknowledgement missing', {
+          subagentId: fallback.subagentId, attempt: fallback.attempt, code: error.code,
+        });
+        return;
+      }
       try {
         await api.reportSubagentFallbackResult(fallback.subagentId, {
           attempt: fallback.attempt,
@@ -46,7 +56,10 @@ export function GlobalSubagentFallbackBridge() {
   const recoverPending = useCallback(async () => {
     try {
       const pending = await api.pendingSubagentFallbacks();
-      await Promise.all(pending.map(dispatchFallback));
+      // Reconnect may expose stale reservations. Only resume known chats;
+      // fresh dispatch belongs to the live fallback_requested event.
+      const resumable = pending.filter((fallback) => Boolean(fallback.conversationUrl?.trim()));
+      await Promise.all(resumable.map(dispatchFallback));
     } catch {
       // A later realtime reconnect will try recovery again.
     }

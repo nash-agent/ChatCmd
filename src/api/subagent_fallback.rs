@@ -413,10 +413,14 @@ fn fallback_submitted_content(
     request: &str,
     subagent_id: &str,
 ) -> String {
-    let delegated_prompt = format!("{request}\n\nCMDGPT_SUBAGENT_ID={subagent_id}");
+    let delegated_prompt = format!(
+        "You are a delegated browser child. Complete this objective directly. Do not call agent_subagent_start or delegate to another agent. Before other tools, call agent_user_message with this complete message, preserving its single CMDGPT_SUBAGENT_ID marker, so subsequent calls stay bound to this child task.\n\n{request}\n\nCMDGPT_SUBAGENT_ID={subagent_id}"
+    );
     match agent_name.map(str::trim).filter(|value| !value.is_empty()) {
         Some(agent_name) => {
-            format!("Use plugin @{agent_name} to perform the following request:\n\n{delegated_prompt}")
+            format!(
+                "Use plugin @{agent_name} to perform the following request:\n\n{delegated_prompt}"
+            )
         }
         None => delegated_prompt,
     }

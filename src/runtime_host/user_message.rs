@@ -236,6 +236,7 @@ impl RuntimeHost {
             Value::Null
         };
         let subagent_limit = self.subagent_concurrency_limit().await?;
+        let browser_child = self.is_browser_subagent_task(task_id.as_str()).await?;
         let intent_hint = intent_hint(content);
         Ok(json!({
             "accepted": true,
@@ -248,9 +249,9 @@ impl RuntimeHost {
                     "allowedTools": super::approval::subagent_grant_tools(),
                     "instruction": "Eligibility only, not granted permissions. approvalGrant can reserve a subset of an existing approved parent safe-read grant; it is not the child's tool allowlist. Omit it if no such grant is available. Never include Git/process or agent_* lifecycle tools. Normal execution policy and approval still apply."
                 },
-                "enabled": subagent_limit > 0,
+                "enabled": subagent_limit > 0 && !browser_child,
                 "maxConcurrent": subagent_limit,
-                "instruction": if subagent_limit == 0 { "Sub-agents are disabled by the user. Do not call agent_subagent_start or delegate to any child; perform the work in this conversation." } else { "Use registered children within the global limit. All descendants remain attached to the root turn. If a nested child cannot acquire a slot, continue locally rather than waiting for another child." }
+                "instruction": if browser_child { "This browser child is a leaf. Complete its delegated objective directly; do not call agent_subagent_start or delegate further." } else if subagent_limit == 0 { "Sub-agents are disabled by the user. Do not call agent_subagent_start or delegate to any child; perform the work in this conversation." } else { "Use registered children within the global limit. All descendants remain attached to the root turn. If a nested child cannot acquire a slot, continue locally rather than waiting for another child." }
             },
             "planMode": is_plan_mode_request(content),
             "intentHint": intent_hint,

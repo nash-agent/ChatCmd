@@ -94,6 +94,9 @@ impl RuntimeHost {
                 .await
                 .ok()
                 .flatten();
+        let delegated_prompt = format!(
+            "You are a delegated browser child. Complete this objective directly. Do not call agent_subagent_start or delegate to another agent. Before other tools, call agent_user_message with this complete message, preserving its single CMDGPT_SUBAGENT_ID marker, so subsequent calls stay bound to this child task.\n\n{delegated_prompt}"
+        );
         let submitted_content = match agent_name
             .as_deref()
             .map(str::trim)
@@ -102,7 +105,7 @@ impl RuntimeHost {
             Some(agent_name) => format!(
                 "Use plugin @{agent_name} to perform the following request:\n\n{delegated_prompt}"
             ),
-            None => delegated_prompt.to_owned(),
+            None => delegated_prompt,
         };
         self.publish_event(
             format!("subagent-fallback-requested-{subagent_id}-{attempt}"),
