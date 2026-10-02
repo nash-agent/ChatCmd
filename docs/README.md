@@ -4,7 +4,7 @@ This directory contains technical and operational documentation for the open-sou
 
 ## Users and operators
 
-- [Plugin and ChatGPT setup](PLUGIN_SETUP.md)
+- [Windows 설치 A–Z: 빌드, Secure MCP Tunnel, ChatGPT, 프로젝트, 업데이트 (한국어)](PLUGIN_SETUP.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [MCP method reference](mcp_method.md)
 - [Diagnostic logs](logs.md)

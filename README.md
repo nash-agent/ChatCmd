@@ -26,6 +26,8 @@ No prebuilt binaries are provided. The updater checks only this fork and does no
 [Quick start from source](#quick-start-from-source) or [Build locally](#build-locally).
 To update, pull the latest source and rebuild on your own computer.
 
+**Windows 설치 A–Z (한국어): [소스 빌드부터 Secure MCP Tunnel·ChatGPT 연결·프로젝트 설정·업데이트까지](docs/PLUGIN_SETUP.md).**
+
 Based on [int04/ChatCmd](https://github.com/int04/ChatCmd), with upstream attribution
 and the MIT license preserved.
 
@@ -159,7 +161,7 @@ For component boundaries, data flow, and security assumptions, read [docs/ARCHIT
 ## Requirements
 
 - [Rust](https://www.rust-lang.org/tools/install) **1.85 or newer** with Cargo.
-- [Node.js](https://nodejs.org/) **20.19 or newer**, or **22.12 or newer**, and npm (matching the checked-in Vite engine requirement).
+- [Node.js](https://nodejs.org/) **the latest 22 LTS patch (22.22.2 or newer)** and npm (satisfying the checked-in build and test dependency engines).
 - [Git](https://git-scm.com/).
 - A supported local shell: PowerShell or `cmd.exe` on Windows; `bash` or `zsh` on macOS/Linux.
 - Platform build tools:
@@ -202,7 +204,7 @@ Then open <http://127.0.0.1:5173>. Vite proxies `/api` and `/ws` to the Rust ser
 4. For a local MCP client, choose **Create new access code** from the profile menu and save the one-time endpoint immediately.
 5. Add that URL as a Streamable HTTP MCP server in the client. No `Authorization` header is required; the secret is the final URL path segment.
 
-To connect a web-hosted AI through your own public endpoint, follow [docs/PLUGIN_SETUP.md](docs/PLUGIN_SETUP.md). It covers tunnel/reverse-proxy setup, the ChatGPT developer-mode flow, and installation of the optional browser extension.
+For a private ChatGPT connection, follow [the Windows installation and MCP setup guide](docs/PLUGIN_SETUP.md) (한국어). It covers source builds, Secure MCP Tunnel, developer-mode app creation, project access, approval settings, backups/updates, and the optional browser extension. A public HTTPS endpoint is a separate operator-managed alternative.
 
 ## Configuration
 
