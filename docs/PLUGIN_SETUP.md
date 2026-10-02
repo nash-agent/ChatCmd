@@ -88,6 +88,10 @@ Do not repeatedly create failing plugins. If ChatGPT rate-limits plugin creation
 
 ## 7. Test a conversation
 
+Before testing, register the working folder in ChatCMD: **Projects → + → Project folder → Choose folder**.
+
+작업 폴더는 ChatCMD의 **Projects → + → Project folder → Choose folder**에서 등록합니다.
+
 1. In a new ChatGPT conversation, type `@` and select the configured plugin. Reload the page if it does not appear.
 2. On the first request, include or select a working project folder so the runtime has a clear workspace.
 3. Watch the ChatCMD management UI for the new task and approve the conversation when prompted.
