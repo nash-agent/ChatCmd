@@ -20,7 +20,7 @@ function turn(id: string, events: TimelineEvent[]): TaskTurn {
 
 describe('collapseChatGptFallbackTurns', () => {
   it('prefers the MCP turn over a matching ChatGPT fallback turn', () => {
-    const submitted = 'Sử dụng plugin @test_rust để thực hiện yêu cầu sau:\n\ncommit';
+    const submitted = 'Use plugin @test_rust to perform the following request:\n\ncommit';
     const fallback = turn('chatgpt-turn-fallback', [event('fallback-user', 'chatgpt-turn-fallback', 0, {
       role: 'user',
       content: 'commit',
@@ -39,8 +39,8 @@ describe('collapseChatGptFallbackTurns', () => {
   it('keeps the ChatGPT fallback when no MCP turn exists', () => {
     const fallback = turn('chatgpt-turn-fallback', [event('fallback-user', 'chatgpt-turn-fallback', 0, {
       role: 'user',
-      content: 'xin chào',
-      submittedContent: 'xin chào',
+      content: 'hello',
+      submittedContent: 'hello',
       provider: 'chatgpt_web',
     })]);
 
@@ -48,7 +48,7 @@ describe('collapseChatGptFallbackTurns', () => {
   });
 
   it('does not collapse an unrelated later MCP turn with the same text', () => {
-    const submitted = 'Sử dụng plugin @test_rust để thực hiện yêu cầu sau:\n\ncommit';
+    const submitted = 'Use plugin @test_rust to perform the following request:\n\ncommit';
     const fallback = turn('chatgpt-turn-fallback', [event('fallback-user', 'chatgpt-turn-fallback', 0, {
       role: 'user',
       content: 'commit',

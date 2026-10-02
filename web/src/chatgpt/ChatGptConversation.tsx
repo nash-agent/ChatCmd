@@ -75,7 +75,7 @@ export function NewChatGptConversation() {
         setFolderMenuOpen(false);
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Không thể mở trình chọn thư mục.');
+      setError(reason instanceof Error ? reason.message : 'Could not open the folder picker.');
     } finally { setFolderPicking(false); }
   };
 
@@ -138,7 +138,7 @@ export function NewChatGptConversation() {
       <div className="chatgpt-chat-thread" aria-live="polite">
         <div className="chatgpt-ai-message">
           <span className="chatgpt-message-avatar"><Bot /></span>
-          <div className="chatgpt-message-copy"><strong>ChatGPT</strong><p>{selectedAgent ? `Bạn muốn mình giao công việc gì cho @${selectedAgent.name}?` : 'Chọn một MCP agent để bắt đầu cuộc trò chuyện.'}</p><small>Yêu cầu của bạn sẽ được gửi qua ChatGPT và agent sẽ thực hiện công việc trong ChatCMD.</small></div>
+          <div className="chatgpt-message-copy"><strong>ChatGPT</strong><p>{selectedAgent ? `What would you like me to assign to @${selectedAgent.name}?` : 'Choose an MCP agent to start the conversation.'}</p><small>Your request will be sent through ChatGPT and the agent will perform the work in ChatCMD.</small></div>
         </div>
         {content.trim() && <div className="chatgpt-user-message"><div>{content}</div></div>}
       </div>
@@ -151,12 +151,12 @@ export function NewChatGptConversation() {
             {enabledAgents.map((agent) => <option value={agent.id} key={agent.id}>@{agent.name}</option>)}
           </select></label>
           <div className="chatgpt-folder-picker">
-            <span>Thư mục dự án</span>
+            <span>Project folder</span>
             <div className="chatgpt-folder-picker-control">
-              <button className={`chatgpt-folder-select ${projectFolder ? '' : 'empty'}`} type="button" onClick={() => { setFolderMenuOpen(true); void projects.reload(); }} disabled={busy} title={projectFolder || 'Chọn thư mục dự án'}>
-                <FolderOpen /><span>{projectFolder || 'Chọn thư mục'}</span>
+              <button className={`chatgpt-folder-select ${projectFolder ? '' : 'empty'}`} type="button" onClick={() => { setFolderMenuOpen(true); void projects.reload(); }} disabled={busy} title={projectFolder || 'Choose project folder'}>
+                <FolderOpen /><span>{projectFolder || 'Choose folder'}</span>
               </button>
-              {projectFolder && <button className="chatgpt-folder-clear" type="button" onClick={() => setProjectFolderFromUser('')} disabled={busy} aria-label="Bỏ chọn thư mục"><X /></button>}
+              {projectFolder && <button className="chatgpt-folder-clear" type="button" onClick={() => setProjectFolderFromUser('')} disabled={busy} aria-label="Clear project folder"><X /></button>}
             </div>
           </div>
           <div className="chatgpt-model-picker">
@@ -173,15 +173,15 @@ export function NewChatGptConversation() {
           <textarea rows={3} value={content} onChange={(event) => setContent(event.target.value)} disabled={busy} placeholder={tr('Enter a request for ChatGPT…')} required />
           <button className="chatgpt-chat-send" type="submit" aria-label={tr('Send to ChatGPT')} disabled={busy || !agentId || !content.trim() || extensionReady === false}>{busy ? <LoaderCircle className="spin" /> : <Send />}</button>
         </div>
-        <div className="chatgpt-chat-composer-meta"><span>{selectedAgent ? `Gửi tới @${selectedAgent.name}` : tr('No enabled agent')}</span><span><ShieldCheck />{tr('Actual message')}: <code>{selectedPrompt(enabledAgents, agentId, projectFolder, content)}</code></span></div>
+        <div className="chatgpt-chat-composer-meta"><span>{selectedAgent ? `Send to @${selectedAgent.name}` : tr('No enabled agent')}</span><span><ShieldCheck />{tr('Actual message')}: <code>{selectedPrompt(enabledAgents, agentId, projectFolder, content)}</code></span></div>
       </form>
     </section>
-    {folderMenuOpen && <Modal className="workspace-folder-modal" title="Chọn thư mục dự án" description="Chọn một dự án đã lưu hoặc mở trình chọn folder trên máy." close={() => !folderPicking && setFolderMenuOpen(false)}><div className="workspace-folder-choices"><div className="workspace-folder-project-list">{projects.loading ? <p className="workspace-folder-empty"><LoaderCircle className="spin" /> Đang tải dự án…</p> : projects.data?.length ? projects.data.map((project) => <button className={`workspace-folder-project ${canonicalProjectPath(projectFolder) === canonicalProjectPath(project.path) ? 'selected' : ''}`} type="button" onClick={() => { setProjectFolderFromUser(project.path); setFolderMenuOpen(false); }} key={project.id}><strong>{project.name}</strong><small>{project.path}</small></button>) : <p className="workspace-folder-empty">{projects.error || 'Chưa có dự án đã lưu.'}</p>}</div><button className="workspace-folder-browse" type="button" onClick={() => void pickFolder()} disabled={folderPicking}>{folderPicking ? <LoaderCircle className="spin" /> : <FolderOpen />}<span><strong>Chọn folder</strong><small>Mở trình chọn thư mục trên máy</small></span></button></div></Modal>}
+    {folderMenuOpen && <Modal className="workspace-folder-modal" title="Choose project folder" description="Choose a saved project or open the local folder picker." close={() => !folderPicking && setFolderMenuOpen(false)}><div className="workspace-folder-choices"><div className="workspace-folder-project-list">{projects.loading ? <p className="workspace-folder-empty"><LoaderCircle className="spin" /> Loading projects…</p> : projects.data?.length ? projects.data.map((project) => <button className={`workspace-folder-project ${canonicalProjectPath(projectFolder) === canonicalProjectPath(project.path) ? 'selected' : ''}`} type="button" onClick={() => { setProjectFolderFromUser(project.path); setFolderMenuOpen(false); }} key={project.id}><strong>{project.name}</strong><small>{project.path}</small></button>) : <p className="workspace-folder-empty">{projects.error || 'No saved projects.'}</p>}</div><button className="workspace-folder-browse" type="button" onClick={() => void pickFolder()} disabled={folderPicking}>{folderPicking ? <LoaderCircle className="spin" /> : <FolderOpen />}<span><strong>Choose folder</strong><small>Open the local folder picker</small></span></button></div></Modal>}
     {confirmWithoutFolder && <div className="modal-backdrop chatgpt-folder-warning-backdrop">
       <div className="modal chatgpt-folder-warning" role="alertdialog" aria-modal="true" aria-labelledby="chatgpt-folder-warning-title">
         <span className="chatgpt-folder-warning-icon"><CircleAlert /></span>
-        <div><h2 id="chatgpt-folder-warning-title">Bạn chưa chọn thư mục</h2><p>Chọn thư mục dự án cụ thể giúp AI làm việc tốt hơn trên môi trường đó, bạn có muốn vẫn tiếp tục mà không có thư mục không?</p></div>
-        <div className="modal-actions"><button className="button secondary" type="button" onClick={() => setConfirmWithoutFolder(false)}>Hủy</button><button className="button primary" type="button" onClick={() => void sendNewConversation(true)}>Tiếp tục mà không cần thư mục</button></div>
+        <div><h2 id="chatgpt-folder-warning-title">No project folder selected</h2><p>Choosing a specific project folder helps the AI work in the correct environment. Continue without a folder?</p></div>
+        <div className="modal-actions"><button className="button secondary" type="button" onClick={() => setConfirmWithoutFolder(false)}>Cancel</button><button className="button primary" type="button" onClick={() => void sendNewConversation(true)}>Continue without a folder</button></div>
       </div>
     </div>}
   </div>;
@@ -197,7 +197,7 @@ export function ChatGptTaskCard({ taskId }: { taskId: string }) {
     return () => window.clearInterval(timer);
   }, [bridge.data?.conversationUrl, refreshBridge]);
   if (!bridge.data) return null;
-  return <section className="task-info-section chatgpt-task-card"><strong>ChatGPT.com</strong><div><Bot /><span><b>{bridge.data.model}</b><small>{bridge.data.conversationId || 'Đang đồng bộ conversation ID…'}</small></span></div>{bridge.data.conversationUrl && <a href={bridge.data.conversationUrl} target="_blank" rel="noreferrer noopener"><ExternalLink />{tr('Open original conversation')}</a>}</section>;
+  return <section className="task-info-section chatgpt-task-card"><strong>ChatGPT.com</strong><div><Bot /><span><b>{bridge.data.model}</b><small>{bridge.data.conversationId || 'Syncing conversation ID…'}</small></span></div>{bridge.data.conversationUrl && <a href={bridge.data.conversationUrl} target="_blank" rel="noreferrer noopener"><ExternalLink />{tr('Open original conversation')}</a>}</section>;
 }
 
 function ExtensionState({ ready }: { ready: boolean | null }) {
@@ -218,8 +218,8 @@ function selectedPrompt(agents: Agent[], agentId: string, projectFolder: string,
   const name = agents.find((agent) => agent.id === agentId)?.name || 'agent';
   const folder = projectFolder.trim();
   return folder
-    ? `Sử dụng plugin @${name}\n\nThư mục dự án: ${folder}\n\nđể thực hiện yêu cầu sau: ${content || '…'}`
-    : `Sử dụng plugin @${name} để thực hiện yêu cầu sau:\n\n${content || '…'}`;
+    ? `Use plugin @${name}\n\nProject folder: ${folder}\n\nto perform the following request: ${content || '…'}`
+    : `Use plugin @${name} to perform the following request:\n\n${content || '…'}`;
 }
 
 function routeProjectFolder(state: unknown) {

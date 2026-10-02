@@ -59,6 +59,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 const json = (value: unknown) => JSON.stringify(value);
 const item = (value: string) => encodeURIComponent(value);
 
+/** Browser work for the fs_write_chatgpt_image MCP tool. */
+export type ChatGptImageJob = { jobId: string; prompt: string; model: string; createdAtMs: number; deadlineAtMs: number };
+
 export const api = {
   chatGptCompact: (taskId: string) => request<CompactHistory>(`/api/local/tasks/${item(taskId)}/chatgpt/compact`),
   startChatGptCompact: (taskId: string, continueAfterCompact = false) => request<CompactJob>(`/api/local/tasks/${item(taskId)}/chatgpt/compact`, { method: 'POST', body: json({ continueAfterCompact }) }),
@@ -110,6 +113,9 @@ export const api = {
   tasks: (cursor?: string, limit = 10, projectFolder?: string) => request<TaskPage>(`/api/local/tasks?limit=${limit}${cursor ? `&cursor=${item(cursor)}` : ''}${projectFolder ? `&projectFolder=${item(projectFolder)}` : ''}`),
   pendingConversationApprovals: () => request<Task[]>('/api/local/tasks/approvals/pending'),
   pendingSubagentFallbacks: () => request<SubagentFallbackRequest[]>('/api/local/subagents/fallback/pending'),
+  pendingChatGptImages: () => request<ChatGptImageJob[]>('/api/local/chatgpt/images/pending'),
+  claimChatGptImage: (jobId: string) => request<ChatGptImageJob>(`/api/local/chatgpt/images/${item(jobId)}/claim`, { method: 'POST', body: '{}' }),
+  reportChatGptImageFailure: (jobId: string, errorMessage: string) => request<{ accepted: boolean }>(`/api/local/chatgpt/images/${item(jobId)}/result`, { method: 'POST', body: json({ status: 'failed', errorMessage }) }),
   reportSubagentFallbackResult: (id: string, input: { attempt: number; status: 'failed' | 'stopped' | 'completed'; errorMessage?: string; assistantContent?: string; conversationId?: string; conversationUrl?: string }) => request<SubagentFallbackResult>(`/api/local/subagents/${item(id)}/fallback/result`, { method: 'POST', body: json(input) }),
   pendingPlanQuestions: () => request<PlanQuestion[]>('/api/local/plan/questions/pending'),
   answerPlanQuestion: (question: PlanQuestion, answer: PlanQuestionAnswer) => request<{ accepted: boolean; questionId: string; taskId: string; turnId: string; questionKind: PlanQuestion['questionKind'] }>(`/api/local/plan/questions/${item(question.id)}/answer`, { method: 'POST', body: json({ ...answer, taskId: question.taskId, turnId: question.turnId }) }),

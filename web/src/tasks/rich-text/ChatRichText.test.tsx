@@ -2,22 +2,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ChatRichText } from './ChatRichText';
 
-const poem = `:::writing{variant="document" id="58321" title="Một chút dịu dàng"} Chiều nghiêng qua cửa rất êm, Gió đem nỗi nhớ đặt bên vai người. Ngoài kia phố vẫn đầy vơi, Trong tim chỉ có một lời: thương em.
+const poem = `:::writing{variant="document" id="58321" title="A Gentle Moment"} Soft evening light falls through the window, carrying a quiet memory. Outside, the street keeps moving, while one quiet thought remains.
 
-Trăng lên khâu vá màn đêm, Sao rơi khe khẽ bên thềm cô đơn. Nếu mai giông gió nhiều hơn, Anh xin làm một con đường em qua.
+Moonlight stitches the night while stars settle softly by the lonely step. If tomorrow brings stronger winds, I will make a path for you to cross.
 
-Tháng năm rồi cũng trôi xa, Chỉ mong mình vẫn thật thà cạnh nhau. Chẳng cần hứa chuyện mai sau, Hôm nay thương đủ — đã màu bình yên. :::`;
+Years may pass and drift away, but I hope we stay honest beside each other. No promises about tomorrow are needed; Today, this love is enough — peaceful and still. :::`;
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('writing UI', () => {
   it('renders the exact reported poem as a titled document with all three paragraphs', () => {
     const { container } = render(<ChatRichText content={poem} />);
-    const card = screen.getByRole('region', { name: 'Một chút dịu dàng' });
+    const card = screen.getByRole('region', { name: 'A Gentle Moment' });
     expect(card.querySelectorAll('.chat-writing-body p')).toHaveLength(3);
-    expect(card).toHaveTextContent('Chiều nghiêng qua cửa rất êm');
-    expect(card).toHaveTextContent('Anh xin làm một con đường em qua.');
-    expect(card).toHaveTextContent('Hôm nay thương đủ — đã màu bình yên.');
+    expect(card).toHaveTextContent('Soft evening light falls through the window');
+    expect(card).toHaveTextContent('I will make a path for you to cross.');
+    expect(card).toHaveTextContent('Today, this love is enough — peaceful and still.');
     expect(container.textContent).not.toContain(':::');
     expect(container.textContent).not.toContain('variant=');
   });
@@ -43,14 +43,14 @@ describe('writing UI', () => {
   });
   it('copies only the document body without protocol metadata', async () => {
     render(<ChatRichText content={':::writing{title="Copy me"} **Body**\n\nLast line :::'} />);
-    fireEvent.click(screen.getByRole('button', { name: /Copy|Sao chép/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Copy/ }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('**Body**\n\nLast line'));
   });
   it('reports clipboard failure accessibly', async () => {
     vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error('Denied'));
     render(<ChatRichText content={':::writing{} Body :::'} />);
-    fireEvent.click(screen.getByRole('button', { name: /Copy|Sao chép/ }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Could not copy|Không sao chép/));
+    fireEvent.click(screen.getByRole('button', { name: /Copy/ }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Could not copy/));
   });
   it('treats writing metadata as text, never executable HTML or DOM IDs', () => {
     const { container } = render(<ChatRichText content={':::writing{id="location" title="<img src=x onerror=alert(1)>"} Safe :::'} />);
@@ -129,7 +129,7 @@ describe('Markdown, HTML and legacy BBCode', () => {
     const { container } = render(<ChatRichText content={`\`\`\`text\n${code}\n\`\`\``} />);
     expect(container.querySelector('.chat-code-block code')?.textContent).toBe(code + '\n');
     expect(container.querySelector('.chat-writing-card, .chat-reference, .katex')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Copy|Sao chép/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Copy/ }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(code));
   });
   it('supports BBCode code with embedded backticks without activating its content', () => {
@@ -155,8 +155,8 @@ describe('Markdown, HTML and legacy BBCode', () => {
 
 describe('native ChatGPT annotations', () => {
   it('renders entities and readable citation fallbacks without inventing URLs', () => {
-    const { container } = render(<ChatRichText content={'entity["city","Hà Nội","Thủ đô"] citeturn0search0turn1view0 citeturn0search0 fileciteturn2file0L10-L20'} />);
-    expect(screen.getByText('Hà Nội')).toHaveClass('chat-entity');
+    const { container } = render(<ChatRichText content={'entity["city","東京","首都"] citeturn0search0turn1view0 citeturn0search0 fileciteturn2file0L10-L20'} />);
+    expect(screen.getByText('東京')).toHaveClass('chat-entity');
     const citations = container.querySelectorAll('.chat-reference');
     expect(citations).toHaveLength(3);
     expect(citations[0]).toHaveTextContent('1, 2');

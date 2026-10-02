@@ -19,11 +19,13 @@ export function GlobalSubagentFallbackBridge() {
         const projects = await api.workspaceProjects();
         newConversationUrl = projects.find((project) => canonicalProjectPath(project.path) === canonicalProjectPath(fallback.projectFolder ?? ''))?.chatGptProjectUrl?.trim() || undefined;
       }
+      const settings = await api.settings();
       await dispatchSubagentFallback({
         subagentId: fallback.subagentId,
         childTaskId: fallback.childTaskId,
         submittedContent: fallback.submittedContent,
         attempt: fallback.attempt,
+        effort: settings.subagentEffort,
         newConversationUrl,
       });
     } catch (error) {

@@ -17,7 +17,7 @@ async fn allow_only(host: &RuntimeHost, agent_id: &str, tool: &str) {
         .await
         .expect("tools")
         .into_iter()
-        .find(|candidate| candidate.key == tool)
+        .find(|candidate| chatcmd_mcp::runtime_tool_name(&candidate.key) == tool)
         .expect("seeded tool")
         .id;
     host.repository

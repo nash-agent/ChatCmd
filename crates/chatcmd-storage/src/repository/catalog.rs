@@ -20,10 +20,59 @@ impl ToolCatalogStore for SqliteRepository {
         for tool in tools {
             let capabilities = serde_json::to_string(&tool.capabilities)
                 .map_err(|error| backend("serialize tool capabilities", error))?;
+            let conflicting_id =
+                sqlx::query_scalar::<_, String>("SELECT id FROM tools WHERE key=? AND id<>?")
+                    .bind(&tool.key)
+                    .bind(&tool.id)
+                    .fetch_optional(&mut *transaction)
+                    .await
+                    .map_err(|error| backend("find conflicting tool key", error))?;
+            let (agent_ids, preset_ids) = if let Some(conflicting_id) = conflicting_id.as_ref() {
+                let agent_ids = sqlx::query_scalar::<_, String>(
+                    "SELECT agent_id FROM agent_allowed_tools WHERE tool_id=?",
+                )
+                .bind(conflicting_id)
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(|error| backend("read conflicting tool allowlists", error))?;
+                let preset_ids = sqlx::query_scalar::<_, String>(
+                    "SELECT preset_id FROM preset_tools WHERE tool_id=?",
+                )
+                .bind(conflicting_id)
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(|error| backend("read conflicting tool presets", error))?;
+                sqlx::query("DELETE FROM tools WHERE id=?")
+                    .bind(conflicting_id)
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(|error| backend("remove conflicting tool key", error))?;
+                (agent_ids, preset_ids)
+            } else {
+                (Vec::new(), Vec::new())
+            };
             sqlx::query("INSERT INTO tools(id,key,group_id,title,description,input_schema_json,capabilities_json,enabled) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET key=excluded.key,group_id=excluded.group_id,title=excluded.title,description=excluded.description,input_schema_json=excluded.input_schema_json,capabilities_json=excluded.capabilities_json,enabled=excluded.enabled")
                 .bind(&tool.id).bind(&tool.key).bind(&tool.group_id).bind(&tool.title).bind(&tool.description)
                 .bind(&tool.input_schema_json).bind(capabilities).bind(tool.enabled)
                 .execute(&mut *transaction).await.map_err(|error| backend("sync tool", error))?;
+            for agent_id in agent_ids {
+                sqlx::query(
+                    "INSERT OR IGNORE INTO agent_allowed_tools(agent_id,tool_id) VALUES(?,?)",
+                )
+                .bind(agent_id)
+                .bind(&tool.id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(|error| backend("restore migrated tool allowlist", error))?;
+            }
+            for preset_id in preset_ids {
+                sqlx::query("INSERT OR IGNORE INTO preset_tools(preset_id,tool_id) VALUES(?,?)")
+                    .bind(preset_id)
+                    .bind(&tool.id)
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(|error| backend("restore migrated tool preset", error))?;
+            }
         }
         for preset in presets {
             sqlx::query("INSERT INTO tool_presets(id,key,name,description) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET key=excluded.key,name=excluded.name,description=excluded.description")

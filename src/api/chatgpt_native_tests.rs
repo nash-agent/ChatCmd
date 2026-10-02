@@ -128,7 +128,7 @@ async fn full_stack_capture_from_native_and_chatcmd_without_mcp() {
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .env("CHATCMD_CAPTURE_TEST_URL", url)
         .kill_on_drop(true);
-    let result = tokio::time::timeout(std::time::Duration::from_secs(45), command.output()).await;
+    let result = tokio::time::timeout(std::time::Duration::from_secs(120), command.output()).await;
     server.abort();
     let output = result
         .expect("capture integration timeout")

@@ -41,8 +41,9 @@ pub(super) fn validate_subagent_grant_request(
     }
     let mut seen = std::collections::BTreeSet::new();
     for name in &request.allowed_tools {
-        let flags = tool_capabilities(name);
-        let duplicate = !seen.insert(name.clone());
+        let public_name = chatcmd_mcp::public_tool_name(name).to_owned();
+        let flags = tool_capabilities(&public_name);
+        let duplicate = !seen.insert(public_name);
         if duplicate || !flags.approval_required || !flags.risk_class.is_safe_read() {
             let preview: String = name.chars().take(120).collect();
             return Err(RuntimeError::new(

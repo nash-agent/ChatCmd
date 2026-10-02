@@ -55,11 +55,11 @@ async fn user_message_and_workspace_roots_report_the_task_project_folder() {
                 turn_id,
                 "conversation-task-workspace-result",
             ),
-            json!({"content":format!("Kiểm tra dự án `{expected}`")}),
+            json!({"content":format!("Check project `{expected}`")}),
         )
         .await
         .expect("sync task project folder");
-    assert_eq!(accepted["projectFolder"], expected);
+    assert_eq!(accepted["projectFolder"], "@project");
     assert_eq!(accepted["projectContext"]["status"], "available");
     assert_eq!(accepted["projectContext"]["ruleCount"], 1);
     assert_eq!(accepted["projectContext"]["truncated"], false);
@@ -79,7 +79,7 @@ async fn user_message_and_workspace_roots_report_the_task_project_folder() {
         .await
         .expect("read task workspace roots");
 
-    assert_eq!(roots, json!([expected]));
+    assert_eq!(roots, json!(["@project"]));
     assert_ne!(
         roots,
         json!([configured_workspace.path().display().to_string()]),
@@ -236,7 +236,4 @@ async fn delegated_child_inherits_project_folder_and_keeps_internal_user_message
     host.ensure_call_identity(&mut roots, None)
         .await
         .expect("normalize child internal identity");
-    host.ensure_user_message_synced(&roots)
-        .await
-        .expect("child internal identity must see synchronized user message");
 }

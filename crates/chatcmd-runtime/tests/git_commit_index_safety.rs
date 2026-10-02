@@ -86,6 +86,19 @@ fn link_file(target: &Path, link: &Path) -> std::io::Result<()> {
     std::os::windows::fs::symlink_file(target, link)
 }
 
+fn symlink_unavailable(error: &std::io::Error) -> bool {
+    #[cfg(windows)]
+    {
+        return error.kind() == std::io::ErrorKind::PermissionDenied
+            || error.raw_os_error() == Some(1314);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = error;
+        false
+    }
+}
+
 async fn assert_failure_preserves_index(directory: &tempfile::TempDir, message: &str) {
     let index_before = git(directory.path(), &["diff", "--cached", "--binary"]);
     let head_before = git(directory.path(), &["rev-parse", "HEAD"]);
@@ -151,7 +164,12 @@ async fn symlinked_parent_is_rejected_without_reading_or_committing_outside_cont
     let outside = tempfile::tempdir().expect("outside directory");
     let marker = outside.path().join("selected.txt");
     std::fs::write(&marker, "outside secret marker\n").expect("write outside marker");
-    link_directory(outside.path(), &directory.path().join("nested")).expect("link parent outside");
+    if let Err(error) = link_directory(outside.path(), &directory.path().join("nested")) {
+        if symlink_unavailable(&error) {
+            return;
+        }
+        panic!("link parent outside: {error}");
+    }
     let head_before = git(directory.path(), &["rev-parse", "HEAD"]);
 
     let error = service(directory.path())
@@ -182,7 +200,12 @@ async fn leaf_symlink_digest_depends_on_link_target_not_target_file_bytes() {
     let outside = tempfile::NamedTempFile::new().expect("outside file");
     std::fs::write(outside.path(), "first secret\n").expect("write outside content");
     std::fs::remove_file(directory.path().join("tracked.txt")).expect("remove tracked file");
-    link_file(outside.path(), &directory.path().join("tracked.txt")).expect("create leaf symlink");
+    if let Err(error) = link_file(outside.path(), &directory.path().join("tracked.txt")) {
+        if symlink_unavailable(&error) {
+            return;
+        }
+        panic!("create leaf symlink: {error}");
+    }
     let paths = ["tracked.txt".to_owned()];
     let first = service(directory.path())
         .preview_commit_with_options(

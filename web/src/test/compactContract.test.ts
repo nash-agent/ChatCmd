@@ -48,7 +48,7 @@ describe('compact local API and extension contract', () => {
     vi.useFakeTimers();
     vi.spyOn(window, 'postMessage').mockImplementation(() => undefined);
     const wake = resumeChatGptCompact('compact-test-job', compactTaskId);
-    const assertion = expect(wake).rejects.toThrow(/respond|phản hồi/i);
+    const assertion = expect(wake).rejects.toThrow(/respond/i);
     await vi.advanceTimersByTimeAsync(5_000);
     await assertion;
   });

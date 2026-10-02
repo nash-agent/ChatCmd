@@ -1,5 +1,8 @@
 # ChatCMD
 
+> [!NOTE]
+> This branch contains the `nash-agent` Astra Workspace custom build. For the reproducible Windows package, browser-extension step, per-PC credentials, and PC2 acceptance checklist, see [CUSTOM_SETUP.md](CUSTOM_SETUP.md).
+
 <p align="center">
   <img src="assets/icons/logo-transparent-master-1254.png" alt="ChatCMD logo" title="ChatCMD" width="420">
 </p>

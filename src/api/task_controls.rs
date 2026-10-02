@@ -435,7 +435,7 @@ pub(super) async fn stop_conversation(
         .map_err(db_problem)?;
 
     let stop_event_id = format!("conversation-stop-{id}");
-    let stop_payload = json!({ "status": "stopped", "content": "Cuộc trò chuyện đã ngừng" });
+    let stop_payload = json!({ "status": "stopped", "content": "Conversation stopped" });
     state
         .repository
         .append_timeline_events(&[TimelineEvent {

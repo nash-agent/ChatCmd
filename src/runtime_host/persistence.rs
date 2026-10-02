@@ -76,18 +76,28 @@ impl RuntimeHost {
         {
             tracing::warn!(code = %error.code, "sub-agent activity heartbeat failed");
         }
-        if tool != "agent_user_message" {
-            self.ensure_user_message_synced(&context).await?;
-        }
-        if let Err(error) = self.authorize_execution(&context, tool, &arguments).await {
+        let request_workspace = self.virtual_workspace_view(&context).await;
+        let arguments = request_workspace.resolve_alias_arguments(tool, arguments)?;
+        if let Err(mut error) = self.authorize_execution(&context, tool, &arguments).await {
+            self.virtual_workspace_view(&context)
+                .await
+                .project_error(&mut error);
             self.append_call_event(&context, tool, "failed", None, None, Some(&error))
                 .await?;
             return Err(error);
         }
         telemetry.set_phase(phase_for_tool(tool));
         let _activity_guard = self.activities.register(&context, tool, &arguments);
-        self.append_call_event(&context, tool, "started", Some(&arguments), None, None)
-            .await?;
+        let public_arguments = request_workspace.project_tool_output(tool, arguments.clone());
+        self.append_call_event(
+            &context,
+            tool,
+            "started",
+            Some(&public_arguments),
+            None,
+            None,
+        )
+        .await?;
 
         let dispatch = self.dispatch(tool, context.clone(), arguments);
         tokio::pin!(dispatch);
@@ -127,6 +137,8 @@ impl RuntimeHost {
         };
         match result {
             Ok(output) => {
+                let virtual_workspace = self.virtual_workspace_view(&context).await;
+                let output = virtual_workspace.project_tool_output(tool, output);
                 telemetry.update_usage(tool_usage_from_value(&output));
                 telemetry.set_phase(ToolPhase::CleaningUp);
                 if let Err(error) = self
@@ -142,9 +154,13 @@ impl RuntimeHost {
                 let output = self
                     .attach_immediate_messages(&context, tool, output)
                     .await?;
+                let output = virtual_workspace.project_tool_output(tool, output);
                 Ok(enrich_tool_result(output, &context, tool))
             }
-            Err(error) => {
+            Err(mut error) => {
+                self.virtual_workspace_view(&context)
+                    .await
+                    .project_error(&mut error);
                 telemetry.set_phase(if is_cancel_code(&error.code) {
                     ToolPhase::RollingBack
                 } else {

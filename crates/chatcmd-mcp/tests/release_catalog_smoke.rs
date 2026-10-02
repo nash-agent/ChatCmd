@@ -105,14 +105,14 @@ async fn packaged_process_advertises_exact_manifest_contract_deterministically()
         .map(|tool| tool["name"].as_str().expect("tool name").to_owned())
         .collect::<Vec<_>>();
     assert_eq!(names.as_slice(), TOOL_NAMES.as_slice());
-    assert!(names.iter().any(|name| name == "fs_replace_text"));
-    assert!(names.iter().any(|name| name == "fs_apply_edits"));
-    assert!(names.iter().any(|name| name == "project_context"));
-    assert_eq!(first_metadata.catalog_version, 8);
+    assert!(names.iter().any(|name| name == "workspace_replace_text"));
+    assert!(names.iter().any(|name| name == "workspace_apply_edits"));
+    assert!(names.iter().any(|name| name == "workspace_context"));
+    assert_eq!(first_metadata.catalog_version, chatcmd_mcp::CATALOG_VERSION);
     let project_context = first
         .iter()
-        .find(|tool| tool["name"] == "project_context")
-        .expect("project_context advertised on wire");
+        .find(|tool| tool["name"] == "workspace_context")
+        .expect("workspace_context advertised on wire");
     assert!(
         project_context["inputSchema"]["properties"]
             .get("policy")
@@ -130,8 +130,8 @@ async fn packaged_process_advertises_exact_manifest_contract_deterministically()
     );
     let git_commit = first
         .iter()
-        .find(|tool| tool["name"] == "git_commit")
-        .expect("git_commit advertised on wire");
+        .find(|tool| tool["name"] == "repository_commit")
+        .expect("repository_commit advertised on wire");
     assert!(
         git_commit["description"]
             .as_str()
@@ -214,8 +214,8 @@ async fn stale_connector_catalog_refreshes_once_and_observes_current_tools() {
     assert!(
         tools
             .iter()
-            .any(|tool| tool["name"].as_str() == Some("fs_replace_text")),
-        "refreshed connector catalog must expose fs_replace_text"
+            .any(|tool| tool["name"].as_str() == Some("workspace_replace_text")),
+        "refreshed connector catalog must expose workspace_replace_text"
     );
 }
 
@@ -290,7 +290,7 @@ async fn packaged_streamable_http_tool_call_preserves_trusted_identity() {
         "id": 2,
         "method": "tools/call",
         "params": {
-            "name": "device_list",
+            "name": "execution_targets",
             "_meta": {"openai/session": "packaged-chat"},
             "arguments": {
                 "agentId": "spoofed-agent",

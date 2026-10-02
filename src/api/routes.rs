@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    extract::Request,
+    extract::{DefaultBodyLimit, Request},
     http::{HeaderValue, StatusCode},
     middleware::{self, Next},
     response::Response,
@@ -13,10 +13,10 @@ use crate::websocket::AppState;
 
 use super::{
     Problem, agents::*, auth::*, chatgpt::*, chatgpt_compact::*, chatgpt_completion::*,
-    chatgpt_native::*, chatgpt_observation::*, chatgpt_queue::*, chatgpt_result::*, data::*,
-    folders::*, overview::*, plan_questions::*, sessions::*, settings::*, skills::*,
-    subagent_fallback::*, system::*, task_controls::*, task_delete::*, task_execution_mode::*,
-    task_views::*, tunnels::*, updates::*, workspaces::*,
+    chatgpt_images::*, chatgpt_native::*, chatgpt_observation::*, chatgpt_queue::*,
+    chatgpt_result::*, data::*, folders::*, overview::*, plan_questions::*, sessions::*,
+    settings::*, skills::*, subagent_fallback::*, system::*, task_controls::*, task_delete::*,
+    task_execution_mode::*, task_views::*, tunnels::*, updates::*, workspaces::*,
 };
 
 pub(crate) fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
@@ -109,6 +109,15 @@ pub(crate) fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route(
             "/subagents/fallback/pending",
             get(pending_subagent_fallbacks),
+        )
+        .route("/chatgpt/images/pending", get(pending_chatgpt_images))
+        .route("/chatgpt/images/{id}/claim", post(claim_chatgpt_image))
+        .route("/chatgpt/images/{id}/started", post(chatgpt_image_started))
+        .route(
+            "/chatgpt/images/{id}/result",
+            post(chatgpt_image_result).layer(DefaultBodyLimit::max(
+                crate::chatgpt_image_jobs::MAX_RESULT_BODY_BYTES,
+            )),
         )
         .route(
             "/subagents/{id}/fallback/started",

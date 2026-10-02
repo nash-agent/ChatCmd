@@ -23,7 +23,7 @@ pub(super) async fn fixture(status: &str) -> (Arc<AppState>, Router, TempDir) {
         sqlx::query("INSERT INTO tasks(id,agent_id,device_id,title,source,status,generation,created_at_ms,updated_at_ms) VALUES(?,?,?,'Bridge router test','chatgpt_web',?,1,?,?)")
             .bind(format!("task-{suffix}")).bind(&agent_id).bind(state.device.id.as_str())
             .bind(status).bind(now).bind(now).execute(state.repository.pool()).await.expect("seed task");
-        sqlx::query("INSERT INTO chatgpt_bridge_requests(id,task_id,turn_id,agent_id,model,user_content,submitted_content,status,created_at_ms,updated_at_ms) VALUES(?,?,?,?,'Auto','xin chào','xin chào',?,?,?)")
+        sqlx::query("INSERT INTO chatgpt_bridge_requests(id,task_id,turn_id,agent_id,model,user_content,submitted_content,status,created_at_ms,updated_at_ms) VALUES(?,?,?,?,'Auto','hello','hello',?,?,?)")
             .bind(format!("request-{suffix}")).bind(format!("task-{suffix}"))
             .bind(format!("turn-{suffix}")).bind(&agent_id).bind(status).bind(now).bind(now)
             .execute(state.repository.pool()).await.expect("seed request without identity");

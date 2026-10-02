@@ -9,6 +9,6 @@ export function prepareChatGptMessage(content: string, attachments: ChatGptMessa
   const projectFolder = attachments.projectFolder?.trim();
   const context: string[] = [];
   if (pluginName) context.push(`plugin @${pluginName}`);
-  if (projectFolder) context.push(`Thư mục dự án: ${projectFolder}`);
-  return context.length ? `${context.join('\n')}\n\nyêu cầu: ${message}` : message;
+  if (projectFolder) context.push(`Project folder: ${projectFolder}`);
+  return context.length ? `${context.join('\n')}\n\nrequest: ${message}` : message;
 }

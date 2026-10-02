@@ -5,7 +5,7 @@ const RAW_BUBBLE_STABILITY_MS = 1_200;
 const SILENT_RETRY_GRACE_MS = 8_000;
 const ERROR_INTERRUPT_GRACE_MS = 2_500;
 const COMPLETION_PING_INTERVAL_MS = 1_000;
-const INTERRUPTED_PROGRESS_PROMPT = 'Tôi vừa bị gián đoạn kết nối. Vui lòng kiểm tra trạng thái công việc ở lượt trước. Nếu chưa hoàn tất, hãy tiếp tục từ trạng thái hiện tại và hoàn thành phần còn lại; không làm lại những phần đã xong. Nếu đã hoàn tất, hãy trả lại kết quả cuối.';
+const INTERRUPTED_PROGRESS_PROMPT = 'My connection was just interrupted. Please check the previous turn\'s work status. If it is incomplete, continue from the current state and finish the remaining work without redoing completed parts. If it is complete, return the final result.';
 const {
   assistantNodes, clickStopButton, findSendButton, findStopButton, findThreadError,
   findVisible, isVisible, latestMessageText, normalize,
@@ -31,15 +31,15 @@ void globalThis.ChatCmdRuntime.sendMessage({ type: 'chatcmd-return-binding-statu
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!globalThis.ChatCmdRuntime.current(CONTENT_CONTEXT)) return false;
-  if (message?.type === 'chatcmd-content-alive' && message.kind === 'chatgpt') { sendResponse({ ok: true, kind: 'chatgpt', captureProtocol: 2, compactProtocol: globalThis.ChatCmdCompact?.version, clockProtocol: globalThis.ChatCmdCaptureClock?.version, renderProtocol: globalThis.ChatCmdRenderBridge?.version, captureReady: Boolean(globalThis.ChatCmdCaptureClock && globalThis.ChatCmdObserver && globalThis.ChatCmdTranscript && globalThis.ChatCmdNativeCapture) }); return false; }
+  if (message?.type === 'chatcmd-content-alive' && message.kind === 'chatgpt') { sendResponse({ ok: true, kind: 'chatgpt', captureProtocol: 2, compactProtocol: globalThis.ChatCmdCompact?.version, clockProtocol: globalThis.ChatCmdCaptureClock?.version, renderProtocol: globalThis.ChatCmdRenderBridge?.version, captureReady: Boolean(globalThis.ChatCmdCaptureClock && globalThis.ChatCmdObserver && globalThis.ChatCmdTranscript && globalThis.ChatCmdNativeCapture), reasoningEffort: globalThis.ChatCmdEffort?.current?.() || null }); return false; }
   if (message?.type === 'chatcmd-chatgpt-run') {
     const composer = findComposer();
     if (!composer || findStopButton() || globalThis.ChatCmdCompact?.busy) {
-      sendResponse({ ok: false, error: 'Tab ChatGPT chưa sẵn sàng nhận tin nhắn mới.' });
+      sendResponse({ ok: false, error: 'The ChatGPT tab is not ready to receive a new message.' });
       return false;
     }
     if (activeRequest && Date.now() - activeRequest.startedAt < 1_500) {
-      sendResponse({ ok: false, error: 'Tab ChatGPT này đang xử lý một yêu cầu khác.' });
+      sendResponse({ ok: false, error: 'This ChatGPT tab is handling another request.' });
       return false;
     }
     if (document.documentElement?.dataset) document.documentElement.dataset.chatcmdRequestId = message.requestId;
@@ -53,7 +53,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type === 'chatcmd-chatgpt-stop') {
     if (!activeRequest || activeRequest.id !== message.requestId) {
-      sendResponse({ ok: false, error: 'Không tìm thấy lượt ChatGPT đang chạy trên tab này.' });
+      sendResponse({ ok: false, error: 'No running ChatGPT turn was found on this tab.' });
       return false;
     }
     activeRequest.stopRequested = true;
@@ -104,6 +104,7 @@ async function runRequest(message) {
   try {
     const composer = await waitForComposer();
     await selectModel(message.model);
+    await globalThis.ChatCmdEffort?.select(message.effort);
     const assistantCount = assistantNodes().length;
     if (activeRequest !== owner) return;
     if (owner) owner.observer = globalThis.ChatCmdObserver?.create(message.requestId, message.submittedContent, {
@@ -264,14 +265,14 @@ function isUsableComposer(element) {
 
 function composerMissingMessage() {
   const path = `${window.location.pathname}${window.location.search}` || '/';
-  return `Không tìm thấy ô nhập ChatGPT trên ${path}. Hãy kiểm tra tab ChatGPT đầu tiên đang ở giao diện chat và bạn đã đăng nhập.`;
+  return `Could not find the ChatGPT composer at ${path}. Make sure the first ChatGPT tab is on the chat interface and you are signed in.`;
 }
 
 async function selectModel(model) {
   const target = String(model || '').trim();
-  if (!target || ['auto', 'default', 'mặc định'].includes(target.toLowerCase())) return;
+  if (!target || ['auto', 'default', 'default'].includes(target.toLowerCase())) return;
   const button = findModelSwitcherButton();
-  if (!button) throw new Error(`ChatGPT hiện không hiển thị bộ chọn model cụ thể. Hãy dùng Auto trên giao diện ChatCMD.`);
+  if (!button) throw new Error(`ChatGPT is not currently showing a specific model selector. Use Auto in the ChatCMD interface.`);
   button.click();
   await delay(250);
   const option = await waitFor(() => {
@@ -279,7 +280,7 @@ async function selectModel(model) {
       .filter((item) => isVisible(item) && !item.closest('form[data-type="unified-composer"]'));
     const wanted = normalize(target);
     return candidates.find((item) => normalize(item.textContent).includes(wanted)) || null;
-  }, 4_000, `Không tìm thấy model “${target}” trong menu ChatGPT.`);
+  }, 4_000, `Could not find model “${target}” in the ChatGPT menu.`);
   option.click();
   await delay(200);
 }
@@ -316,7 +317,7 @@ function cleanModelLabel(value) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (!text) return '';
   const stripped = text.replace(/^model\s*[:：-]?\s*/i, '').trim();
-  const ignored = ['model', 'models', 'select model', 'choose model', 'chatgpt', 'suy luận', 'vừa', 'thinking', 'reasoning'];
+  const ignored = ['model', 'models', 'select model', 'choose model', 'chatgpt', 'reasoning', 'medium', 'thinking', 'reasoning'];
   if (!stripped || ignored.includes(stripped.toLowerCase())) return '';
   return stripped;
 }
@@ -347,16 +348,31 @@ function setComposerText(composer, text) {
 
 async function submitPrompt(composer) {
   await delay(100);
-  const button = await waitFor(findSendButton, 5_000, 'Không tìm thấy nút gửi của ChatGPT.');
-  if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
-    await waitFor(() => !button.disabled && button.getAttribute('aria-disabled') !== 'true' ? button : null, 4_000, 'Nút gửi ChatGPT đang bị vô hiệu hóa.');
+  let button = null;
+  const deadline = Date.now() + 5_000;
+  while (!button && Date.now() < deadline) {
+    button = findSendButton();
+    if (!button) await delay(120);
   }
-  button.click();
-  composer.blur();
+  if (button) {
+    if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
+      await waitFor(() => !button.disabled && button.getAttribute('aria-disabled') !== 'true' ? button : null, 4_000, 'The ChatGPT send button is disabled.');
+    }
+    button.click();
+    composer.blur();
+    return;
+  }
+  const form = composer.closest?.('form') || [...document.querySelectorAll('form[data-type="unified-composer"]')].filter(isVisible).at(-1);
+  if (form && typeof form.requestSubmit === 'function') {
+    form.requestSubmit();
+    composer.blur();
+    return;
+  }
+  throw new Error('Could not find ChatGPT\'s send button or submit the composer form.');
 }
 
 async function waitForConversationIdentity() {
-  return waitFor(currentConversationIdentity, 15_000, 'ChatGPT chưa tạo conversation ID trên URL.');
+  return waitFor(currentConversationIdentity, 15_000, 'ChatGPT has not created a conversation ID in the URL.');
 }
 
 function currentConversationIdentity() {
@@ -406,7 +422,7 @@ async function reportBrowserCompletion(requestId, assistantContent) {
     if (activeRequest?.id === requestId) activeRequest.resultReported = true;
     return true;
   } catch (error) {
-    if (!globalThis.ChatCmdRuntime.invalidated(error)) console.warn('[ChatCMD bridge] Không thể xác nhận raw bubble với backend.', error);
+    if (!globalThis.ChatCmdRuntime.invalidated(error)) console.warn('[ChatCMD bridge] Could not confirm the raw bubble with the backend.', error);
     return false;
   }
 }
@@ -428,7 +444,7 @@ async function waitFor(factory, timeoutMs, message) {
   while (Date.now() - startedAt < timeoutMs) {
     const value = factory();
     if (value) return value;
-    if (activeRequest?.stopRequested) throw new Error('Đã dừng theo yêu cầu người dùng.');
+    if (activeRequest?.stopRequested) throw new Error('Stopped at the user\'s request.');
     await delay(120);
   }
   throw new Error(message);
@@ -446,7 +462,7 @@ function renderReturnToChatCmd(enabled) {
 }
 
 function delay(ms) { return globalThis.ChatCmdCaptureClock?.sleep(ms) ?? new Promise((resolve) => setTimeout(resolve, ms)); }
-function errorMessage(error) { return error instanceof Error ? error.message : String(error || 'Lỗi khi thao tác ChatGPT.'); }
+function errorMessage(error) { return error instanceof Error ? error.message : String(error || 'Error while operating ChatGPT.'); }
 
 async function adoptObservedRequest(request, user = null) {
   if (activeRequest || !globalThis.ChatCmdRuntime.current(CONTENT_CONTEXT)) return;
@@ -471,6 +487,7 @@ async function adoptObservedRequest(request, user = null) {
     if (activeRequest === owner) activeRequest = null;
   }
 }
+
 globalThis.ChatCmdController = Object.freeze({
   get active() { return activeRequest; },
   current: () => globalThis.ChatCmdRuntime.current(CONTENT_CONTEXT),

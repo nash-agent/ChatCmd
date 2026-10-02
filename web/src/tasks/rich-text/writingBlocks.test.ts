@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { splitWritingBlocks } from './writingBlocks';
 
-const envelope = ':::writing{variant="document" id="58321" title="Một chút dịu dàng"}';
-const body = 'Chiều nghiêng qua cửa rất êm, Gió đem nỗi nhớ đặt bên vai người.\n\nTháng năm rồi cũng trôi xa.';
+const envelope = ':::writing{variant="document" id="58321" title="A Gentle Moment"}';
+const body = 'Soft evening light falls through the window, carrying a quiet memory.\n\nYears may pass and drift away.';
 
 describe('ChatGPT writing envelopes', () => {
   it('accepts the reported same-line header and closing fence', () => {
     expect(splitWritingBlocks(`${envelope} ${body} :::`)).toEqual([
-      { kind: 'writing', start: 0, attributes: { variant: 'document', id: '58321', title: 'Một chút dịu dàng' }, content: body, closed: true },
+      { kind: 'writing', start: 0, attributes: { variant: 'document', id: '58321', title: 'A Gentle Moment' }, content: body, closed: true },
     ]);
   });
   it('preserves text surrounding multiple blocks and repeated document IDs', () => {
@@ -19,7 +19,7 @@ describe('ChatGPT writing envelopes', () => {
     const [part] = splitWritingBlocks(':::writing{subject="A \\"quote\\" }" id=123 variant=email recipient=reader@example.com} Draft :::');
     expect(part.kind).toBe('writing');
     if (part.kind === 'writing') expect(part.attributes).toMatchObject({ subject: 'A "quote" }', id: '123', variant: 'email', recipient: 'reader@example.com' });
-    expect(splitWritingBlocks(":::writing{title='Tên có dấu'} Hi :::")[0].kind).toBe('writing');
+    expect(splitWritingBlocks(":::writing{title='Unicode title'} Hi :::")[0].kind).toBe('writing');
   });
   it('shows a complete header with an unfinished body without losing the text', () => {
     const parts = splitWritingBlocks(`${envelope}\nFirst line\nSecond line`);
@@ -60,7 +60,7 @@ describe('ChatGPT writing envelopes', () => {
     expect(parts[0]).toMatchObject({ content: 'Text', closed: true });
   });
   it('preserves Unicode and all paragraph text for long documents', () => {
-    const content = Array.from({ length: 1000 }, (_, index) => `Dòng ${index}: tiếng Việt, 日本語, العربية.`).join('\n\n');
+    const content = Array.from({ length: 1000 }, (_, index) => `Line ${index}: 日本語, 한국어.`).join('\n\n');
     expect(splitWritingBlocks(`${envelope}\n${content}\n:::`)[0].content).toBe(content);
   });
 });

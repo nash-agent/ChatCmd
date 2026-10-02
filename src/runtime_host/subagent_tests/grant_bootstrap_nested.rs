@@ -45,7 +45,7 @@ async fn valid_grants_reach_grandchild_with_two_slots_and_preserve_budgets_and_r
         first["subagentPolicy"]["approvalGrant"]["allowedTools"]
             .as_array()
             .unwrap()
-            .contains(&json!("fs_read_text"))
+            .contains(&json!("workspace_read_text_legacy"))
     );
     assert!(
         !first["subagentPolicy"]["approvalGrant"]["allowedTools"]

@@ -33,7 +33,7 @@ describe('local API client', () => {
     vi.stubGlobal('fetch', fetchMock);
     await api.taskExecutionMode('task/with space');
     await api.setTaskExecutionMode('task/with space', 'allowAll');
-    await api.stopTaskActivity('task/with space', 'activity/1', { turnId: 'turn-1', reason: 'Dừng để đổi cách làm' });
+    await api.stopTaskActivity('task/with space', 'activity/1', { turnId: 'turn-1', reason: 'Stop to change approach' });
     await api.stopTask('task/with space');
     expect(fetchMock.mock.calls.map(([path]) => String(path))).toEqual([
       '/api/local/tasks/task%2Fwith%20space/command-execution-mode',
@@ -42,7 +42,7 @@ describe('local API client', () => {
       '/api/local/tasks/task%2Fwith%20space/stop',
     ]);
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'PUT' });
-    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ turnId: 'turn-1', reason: 'Dừng để đổi cách làm' }) });
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ turnId: 'turn-1', reason: 'Stop to change approach' }) });
     expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: 'POST' });
   });
 

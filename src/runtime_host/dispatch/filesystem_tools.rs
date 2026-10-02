@@ -186,6 +186,10 @@ impl RuntimeHost {
                 result.measure_output_bytes()?;
                 value(result)
             }
+            "fs_read_image" => {
+                let input: PathInput = parse(arguments)?;
+                value(workspace.read_image(&input.path).await?)
+            }
             "fs_read_text" => {
                 let input: ReadInput = parse(arguments)?;
                 value(
@@ -220,6 +224,7 @@ impl RuntimeHost {
                 let input: WriteRawInput = parse(arguments)?;
                 filesystem_dispatch::write_raw(self, workspace, context, input).await
             }
+            "fs_write_chatgpt_image" => self.dispatch_chatgpt_image(context, arguments).await,
             "fs_stat" => {
                 let input: StatInput = parse(arguments)?;
                 value(

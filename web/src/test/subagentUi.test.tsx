@@ -46,7 +46,7 @@ describe('subagent tree and chat layout', () => {
     expect(topbar).toHaveAttribute('tabindex', '0');
     expect(topbar.nextElementSibling).toHaveClass('task-chat-column');
     expect(screen.getByTestId('turn-children')).toHaveTextContent('child, grandchild');
-    fireEvent.click(screen.getByRole('button', { name: 'Đóng thông tin task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close task information' }));
     expect(container.querySelector('.task-detail-sidebar')).toBeNull();
     expect(container.querySelector('.task-detail-shell')).toHaveClass('sidebar-collapsed');
   });
@@ -56,7 +56,7 @@ describe('subagent tree and chat layout', () => {
     await waitFor(() => expect(scene.refresh).toHaveBeenCalled());
   });
   it('offers and persists zero from the execution settings tab', async () => {
-    const settings = { bindAddress: '127.0.0.1', port: 8080, mcpEndpoint: '', databasePath: '', executionMode: 'approval', approveNewConversations: false, terminalExecutable: 'pwsh', taskConcurrency: 2, sessionConcurrency: 2, subagentConcurrency: 0, theme: 'dark', fontFamily: 'Inter', taskFontScale: 100, language: 'en', newAgentSound: false, finishedTaskSound: false, dataRetention: 'off' };
+    const settings = { bindAddress: '127.0.0.1', port: 8080, mcpEndpoint: '', databasePath: '', executionMode: 'approval', approveNewConversations: false, terminalExecutable: 'pwsh', taskConcurrency: 2, sessionConcurrency: 2, subagentConcurrency: 0, subagentEffort: 'inherit', theme: 'dark', fontFamily: 'Inter', taskFontScale: 100, language: 'en', newAgentSound: false, finishedTaskSound: false, dataRetention: 'off' };
     scene.data = settings;
     const save = vi.spyOn(api, 'saveSettings').mockImplementation(async (value) => value);
     render(<MemoryRouter initialEntries={['/settings?tab=execution']}><SettingsPage /></MemoryRouter>);

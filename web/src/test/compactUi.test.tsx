@@ -191,7 +191,7 @@ describe('Compact & Resume task UI', () => {
     const completed = compactJob({ phase: 'completed', revision: 5, newConversationId: 'new-chat', newConversationUrl: newUrl });
     vi.mocked(api.chatGptCompact).mockResolvedValue({ active: null, history: [completed, completed] });
     mountTask(); await flush();
-    const history = screen.getByRole('region', { name: 'Lịch sử thu gọn ngữ cảnh' });
+    const history = screen.getByRole('region', { name: 'Compact history' });
     expect(screen.getByTestId('permission-card').nextElementSibling).toBe(history);
     expect(within(history).getAllByRole('listitem')).toHaveLength(1);
     const link = within(history).getByRole('link', { name: new RegExp(compactText('reference')) });
@@ -212,7 +212,7 @@ describe('Compact & Resume task UI', () => {
     vi.mocked(chatGptExtensionStatus).mockResolvedValue({ ...extensionReady, ready: false, conversationTabOpen: false });
     vi.mocked(resumeChatGptCompact).mockRejectedValue(new Error('extension unavailable'));
     const view = mountTask(); await flush();
-    expect(screen.getByText(/Tiến trình đã lưu nhưng extension chưa xác nhận/)).toBeVisible();
+    expect(screen.getByText(/Progress is saved, but the extension has not acknowledged it/)).toBeVisible();
     expect(screen.getByRole('button', { name: compactText('resume') })).toBeEnabled();
     expect(api.startChatGptCompact).not.toHaveBeenCalled();
     view.unmount(); mountTask(); await flush();

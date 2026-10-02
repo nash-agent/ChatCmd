@@ -100,7 +100,7 @@ pub(super) async fn update_workspace_project(
             Problem::new(
                 StatusCode::NOT_FOUND,
                 "Workspace project not found",
-                "Dự án không còn tồn tại.",
+                "The project no longer exists.",
             )
         })?;
     let old_canonical = existing.get::<String, _>("canonical_path");
@@ -117,7 +117,7 @@ pub(super) async fn update_workspace_project(
         return Err(Problem::new(
             StatusCode::CONFLICT,
             "Workspace project already exists",
-            "Thư mục này đã được dùng bởi một dự án khác.",
+            "This folder is already used by another project.",
         ));
     }
 
@@ -196,7 +196,7 @@ pub(super) async fn delete_workspace_project(
             Problem::new(
                 StatusCode::NOT_FOUND,
                 "Workspace project not found",
-                "Dự án không còn tồn tại.",
+                "The project no longer exists.",
             )
         })?;
     let canonical = row.get::<String, _>("canonical_path");
@@ -236,7 +236,7 @@ pub(super) async fn delete_workspace_project(
             Problem::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Invalid stored task id",
-                "Không thể xóa cuộc trò chuyện của dự án.",
+                "Could not delete the project conversation.",
             )
         })?;
         delete_task_by_id(&state, &parsed).await?;
@@ -307,7 +307,7 @@ fn normalize_chatgpt_project_url(value: Option<&str>) -> Result<Option<String>, 
         return Err(Problem::new(
             StatusCode::BAD_REQUEST,
             "Invalid ChatGPT project link",
-            "Link dự án ChatGPT phải có dạng https://chatgpt.com/g/g-p-{MÃ}/project.",
+            "The ChatGPT project link must have the form https://chatgpt.com/g/g-p-{CODE}/project.",
         ));
     }
     Ok(Some(value.to_owned()))

@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn encoded_output_round_trips_utf8_ansi_cr_and_binary() {
         let vectors: [&[u8]; 4] = [
-            "xin chào".as_bytes(),
+            "hello 世界".as_bytes(),
             b"\x1b[31mred\x1b[0m",
             b"10%\r20%\r",
             b"\x00\xff\x80\n",

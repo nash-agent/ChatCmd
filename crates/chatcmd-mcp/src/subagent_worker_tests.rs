@@ -51,7 +51,7 @@ impl crate::RuntimeApi for FakeRuntime {
                 })),
                 "fs_read_text" => Ok(json!({ "content": "file contents", "truncated": false })),
                 "workspace_roots" if self.fail_workspace_roots => Err(RuntimeError::new(
-                    "user_message_sync_required",
+                    "simulated_startup_failure",
                     "simulated startup failure after registration",
                 )),
                 "workspace_roots" => Ok(json!(["D:/workspace"])),
@@ -150,7 +150,7 @@ impl rmcp::ClientHandler for SamplingClient {
             Ok(rmcp::model::CreateMessageResult::new(
                 SamplingMessage::assistant_tool_use(
                     "tool-call-1",
-                    "fs_read_text",
+                    "workspace_read_text_legacy",
                     Map::from_iter([("path".to_owned(), json!("a.rs"))]),
                 ),
                 "test-model".to_owned(),
@@ -189,9 +189,9 @@ impl rmcp::ClientHandler for TextSamplingClient {
         use std::sync::atomic::Ordering;
         let index = self.calls.fetch_add(1, Ordering::SeqCst);
         let content = if index == 0 {
-            r#"{"action":"tool","name":"fs_read_text","arguments":{"path":"b.rs"}}"#
+            r#"{"action":"tool","name":"execution_targets","arguments":{}}"#
         } else {
-            r#"{"action":"final","content":"Read b.rs successfully."}"#
+            r#"{"action":"final","content":"Inspected execution targets successfully."}"#
         };
         Ok(rmcp::model::CreateMessageResult::new(
             SamplingMessage::assistant_text(content),

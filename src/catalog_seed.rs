@@ -23,25 +23,28 @@ pub(super) async fn seed_catalog(
             key: name.clone(),
             group_id: tool_group_id(name).to_owned(),
             title: name.replace('_', " "),
-            description: format!("Local {name} operation"),
+            description: format!("Workspace {name} operation"),
             input_schema_json: "{}".to_owned(),
-            capabilities: if [
-                "fs_delete",
-                "fs_move",
-                "git_commit",
-                "process_kill",
-                "shell_close",
-            ]
-            .contains(&name.as_str())
-            {
-                vec![ToolCapability::Destructive]
-            } else if name.starts_with("blob_")
-                || name.starts_with("fs_write")
-                || matches!(name.as_str(), "fs_replace_text" | "fs_apply_edits")
-            {
-                vec![ToolCapability::Write]
-            } else {
-                vec![ToolCapability::Read]
+            capabilities: {
+                let runtime_name = chatcmd_mcp::runtime_tool_name(name);
+                if [
+                    "fs_delete",
+                    "fs_move",
+                    "git_commit",
+                    "process_kill",
+                    "shell_close",
+                ]
+                .contains(&runtime_name)
+                {
+                    vec![ToolCapability::Destructive]
+                } else if runtime_name.starts_with("blob_")
+                    || runtime_name.starts_with("fs_write")
+                    || matches!(runtime_name, "fs_replace_text" | "fs_apply_edits")
+                {
+                    vec![ToolCapability::Write]
+                } else {
+                    vec![ToolCapability::Read]
+                }
             },
             enabled: true,
         })
@@ -54,8 +57,8 @@ pub(super) async fn seed_catalog(
     let presets = vec![ToolPreset {
         id: "preset-safe".to_owned(),
         key: "safe".to_owned(),
-        name: "Safe local tools".to_owned(),
-        description: "All non-destructive local tools".to_owned(),
+        name: "Safe workspace tools".to_owned(),
+        description: "All non-destructive workspace tools".to_owned(),
         tool_ids: safe_ids,
     }];
     repository
@@ -63,8 +66,10 @@ pub(super) async fn seed_catalog(
         .await?;
 
     let write_id = seeded_tool_id("fs_write_text");
+    let write_raw_id = seeded_tool_id("fs_write_raw");
     let replace_id = seeded_tool_id("fs_replace_text");
     let apply_edits_id = seeded_tool_id("fs_apply_edits");
+    let chatgpt_image_id = seeded_tool_id("fs_write_chatgpt_image");
     for agent in repository.list_agents().await? {
         let mut allowed = repository.agent_allowed_tool_ids(&agent.id).await?;
         let mut changed = false;
@@ -74,6 +79,12 @@ pub(super) async fn seed_catalog(
         }
         if allowed.contains(&write_id) && !allowed.contains(&apply_edits_id) {
             allowed.push(apply_edits_id.clone());
+            changed = true;
+        }
+        // fs_write_chatgpt_image only ever writes image bytes inside the same
+        // scope, so agents that may already write raw bytes receive it.
+        if allowed.contains(&write_raw_id) && !allowed.contains(&chatgpt_image_id) {
+            allowed.push(chatgpt_image_id.clone());
             changed = true;
         }
         if changed {
@@ -95,6 +106,7 @@ fn tool_group(id: &str, key: &str, display_name: &str, sort_order: i32) -> ToolG
 }
 
 fn tool_group_id(name: &str) -> &'static str {
+    let name = chatcmd_mcp::runtime_tool_name(name);
     if name.starts_with("device_") {
         "group-device"
     } else if name.starts_with("shell_") {
@@ -113,12 +125,13 @@ fn tool_group_id(name: &str) -> &'static str {
 }
 
 fn seeded_tool_id(name: &str) -> String {
-    match name {
+    let runtime_name = chatcmd_mcp::runtime_tool_name(name);
+    match runtime_name {
         "device_list" => "tool-device-list".to_owned(),
         "shell_create" => "tool-shell-create".to_owned(),
         "shell_read" => "tool-shell-read".to_owned(),
         "shell_write" => "tool-shell-write".to_owned(),
         "fs_read_text" => "tool-fs-read".to_owned(),
-        _ => format!("tool-{name}"),
+        _ => format!("tool-{runtime_name}"),
     }
 }

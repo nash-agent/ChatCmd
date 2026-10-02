@@ -1,10 +1,196 @@
-use chatcmd_core::{ExecutionMode, TaskExecutionMode, TaskId, TaskStore as _};
+use chatcmd_core::{
+    AgentId, ExecutionMode, TaskExecutionMode, TaskId, TaskStore as _, ToolCatalogStore as _,
+};
 use serde_json::json;
 use sqlx::Row as _;
 use tempfile::TempDir;
 
 use super::user_message_tests::{test_host, turn_context};
 use super::*;
+
+#[tokio::test]
+async fn fresh_provider_scope_bootstraps_on_first_user_message_and_reuses_binding() {
+    let (host, agent_id, _directory) = test_host().await;
+    let scope = "openai:fresh-provider-conversation";
+
+    let first = host
+        .call_persisted(
+            "agent_user_message",
+            turn_context(
+                "fresh-provider-first",
+                &agent_id,
+                "agent_user_message",
+                "turn-fresh-provider-first",
+                scope,
+            ),
+            json!({"content":"Start a fresh provider-scoped conversation"}),
+        )
+        .await
+        .expect("first provider user message should bootstrap a task");
+    let task_id = first["taskId"].as_str().expect("task id").to_owned();
+
+    let row = sqlx::query(
+        "SELECT source,conversation_scope_hash,allow_execute,generation FROM tasks WHERE id=?",
+    )
+    .bind(&task_id)
+    .fetch_one(host.repository.pool())
+    .await
+    .expect("read provider-created task");
+    assert_eq!(row.get::<String, _>("source"), "mcp");
+    assert_eq!(
+        row.get::<Option<String>, _>("conversation_scope_hash"),
+        None
+    );
+    assert_eq!(row.get::<bool, _>("allow_execute"), true);
+    assert_eq!(row.get::<i64, _>("generation"), 1);
+
+    let binding = sqlx::query(
+        "SELECT task_id,generation FROM chatgpt_mcp_scope_bindings WHERE agent_id=? AND device_id=? AND scope_hash=?",
+    )
+    .bind(&agent_id)
+    .bind(host.device.id.as_str())
+    .bind(scope)
+    .fetch_one(host.repository.pool())
+    .await
+    .expect("provider binding");
+    assert_eq!(binding.get::<String, _>("task_id"), task_id);
+    assert_eq!(binding.get::<i64, _>("generation"), 1);
+
+    let second = host
+        .call_persisted(
+            "agent_user_message",
+            turn_context(
+                "fresh-provider-second",
+                &agent_id,
+                "agent_user_message",
+                "turn-fresh-provider-second",
+                scope,
+            ),
+            json!({"content":"Continue"}),
+        )
+        .await
+        .expect("provider binding should route later messages");
+    assert_eq!(second["taskId"], task_id);
+}
+
+#[tokio::test]
+async fn fresh_provider_scope_allows_discovery_without_user_message() {
+    let (host, agent_id, _directory) = test_host().await;
+    crate::catalog_seed::seed_catalog(&host.repository)
+        .await
+        .expect("seed current catalog");
+    let allowed_tools = host
+        .repository
+        .list_tools()
+        .await
+        .expect("list tools")
+        .into_iter()
+        .map(|tool| tool.id)
+        .collect::<Vec<_>>();
+    host.repository
+        .set_agent_allowed_tools(&AgentId::new(&agent_id).expect("agent ID"), &allowed_tools)
+        .await
+        .expect("allow pre-message discovery tools");
+    let scope = "openai:pre-message-discovery";
+    let turn = "turn-pre-message-discovery";
+
+    let _roots = host
+        .call_persisted(
+            "workspace_roots",
+            turn_context(
+                "pre-message-roots",
+                &agent_id,
+                "workspace_roots",
+                turn,
+                scope,
+            ),
+            json!({}),
+        )
+        .await
+        .expect("workspace root discovery before user message");
+
+    let _devices = host
+        .call_persisted(
+            "device_list",
+            turn_context("pre-message-devices", &agent_id, "device_list", turn, scope),
+            json!({}),
+        )
+        .await
+        .expect("execution target discovery before user message");
+
+    let _device = host
+        .call_persisted(
+            "device_get",
+            turn_context("pre-message-device", &agent_id, "device_get", turn, scope),
+            json!({"deviceId":"default-runtime"}),
+        )
+        .await
+        .expect("execution target inspect before user message");
+}
+
+#[tokio::test]
+async fn fresh_provider_scope_allows_general_tool_without_user_message() {
+    let (host, agent_id, directory) = test_host().await;
+    crate::catalog_seed::seed_catalog(&host.repository)
+        .await
+        .expect("seed current catalog");
+    let allowed_tools = host
+        .repository
+        .list_tools()
+        .await
+        .expect("list tools")
+        .into_iter()
+        .map(|tool| tool.id)
+        .collect::<Vec<_>>();
+    host.repository
+        .set_agent_allowed_tools(&AgentId::new(&agent_id).expect("agent ID"), &allowed_tools)
+        .await
+        .expect("allow tools");
+
+    let scope = "openai:unbound-provider-read";
+    let turn = "turn-fresh-provider-read";
+    host.call_persisted(
+        "workspace_roots",
+        turn_context(
+            "fresh-provider-roots",
+            &agent_id,
+            "workspace_roots",
+            turn,
+            scope,
+        ),
+        json!({}),
+    )
+    .await
+    .expect("bootstrap provider task without agent_user_message");
+
+    let task_id = identity_support::safe_id("task-chat", &agent_id, scope);
+    host.repository
+        .set_execution_mode(&TaskExecutionMode {
+            task_id: TaskId::new(task_id).expect("task id model"),
+            mode: ExecutionMode::Allow,
+            updated_at_ms: now_ms(),
+        })
+        .await
+        .expect("allow task execution");
+
+    let file = directory.path().join("bootstrap.txt");
+    std::fs::write(&file, "bootstrap works").expect("write bootstrap fixture");
+    let result = host
+        .call_persisted(
+            "fs_read_text",
+            turn_context(
+                "fresh-provider-read",
+                &agent_id,
+                "fs_read_text",
+                turn,
+                scope,
+            ),
+            json!({"path":file.to_string_lossy(),"maxCharacters":100}),
+        )
+        .await
+        .expect("general tool must not depend on agent_user_message");
+    assert!(result.to_string().contains("bootstrap works"));
+}
 
 #[test]
 fn user_supplied_absolute_path_grant_persists_for_task() {
@@ -41,7 +227,7 @@ async fn user_supplied_absolute_path_grant_persists_for_task_case() {
         .call_persisted(
             "agent_user_message",
             turn_context("path-user", &agent_id, "agent_user_message", turn, scope),
-            json!({"content": format!("Tham khảo từ `{}`", granted_directory.display())}),
+            json!({"content": format!("Reference from `{}`", granted_directory.display())}),
         )
         .await
         .expect("sync user path message");
@@ -109,7 +295,7 @@ async fn user_supplied_absolute_path_grant_persists_for_task_case() {
     host.call_persisted(
         "agent_user_message",
         next_user_context,
-        json!({"content":"Tiếp tục"}),
+        json!({"content":"Continue"}),
     )
     .await
     .expect("sync next user turn");
@@ -152,7 +338,7 @@ async fn single_file_path_binds_its_parent_and_later_messages_do_not_override_it
                 "turn-file-path",
                 scope,
             ),
-            json!({"content": format!("Kiểm tra file `{}`", file.display())}),
+            json!({"content": format!("Check file `{}`", file.display())}),
         )
         .await
         .expect("sync file path message");
@@ -169,7 +355,7 @@ async fn single_file_path_binds_its_parent_and_later_messages_do_not_override_it
     host.call_persisted(
         "agent_user_message",
         next_context,
-        json!({"content": format!("Tiếp tục ở `{}`", second.path().display())}),
+        json!({"content": format!("Continue at `{}`", second.path().display())}),
     )
     .await
     .expect("sync later path message");
@@ -210,7 +396,7 @@ async fn multiple_absolute_paths_do_not_bind_an_ambiguous_project_folder() {
             ),
             json!({
                 "content": format!(
-                    "So sánh `{}` với `{}`",
+                    "Compare `{}` with `{}`",
                     first.path().display(),
                     second.path().display()
                 )
@@ -234,7 +420,7 @@ async fn chatgpt_bridge_reuses_existing_task_when_chatgpt_reformats_the_prompt()
     let (host, agent_id, _directory) = test_host().await;
     let task_id = "task-chatgpt-bridge-existing";
     let request_id = "chatgpt-request-existing";
-    let submitted = "Sử dụng plugin @test_rust\n\nThư mục dự án: D:\\DEV\\CmdGPT\\ChatCmdClient\n\nđể thực hiện yêu cầu sau: Kiểm tra http://localhost:8080/api/local/overview \n\n\nVí dụ abcd ";
+    let submitted = "Use plugin @test_rust\n\nProject folder: D:\\DEV\\CmdGPT\\ChatCmdClient\n\nto perform the following request: Check http://localhost:8080/api/local/overview \n\n\nExample abcd ";
     let message_from_chatgpt = submitted
         .replacen("@test_rust", "@test\\_rust", 1)
         .replacen(
@@ -242,8 +428,8 @@ async fn chatgpt_bridge_reuses_existing_task_when_chatgpt_reformats_the_prompt()
             "[http://localhost:8080/api/local/overview](http://localhost:8080/api/local/overview)",
             1,
         )
-        .replacen("\n\n\nVí dụ", "\n\n\n\nVí dụ", 1)
-        .replacen("Ví dụ abcd ", "Ví dụ abcd\u{00a0}", 1);
+        .replacen("\n\n\nExample", "\n\n\n\nExample", 1)
+        .replacen("Example abcd ", "Example abcd\u{00a0}", 1);
     let now = now_ms();
 
     sqlx::query(
@@ -253,7 +439,7 @@ async fn chatgpt_bridge_reuses_existing_task_when_chatgpt_reformats_the_prompt()
     .bind(&agent_id)
     .bind(host.device.id.as_str())
     .bind("openai:url-conversation-id")
-    .bind("Kiểm tra duplicate task")
+    .bind("Check duplicate task")
     .bind(now)
     .bind(now)
     .execute(host.repository.pool())
@@ -268,7 +454,7 @@ async fn chatgpt_bridge_reuses_existing_task_when_chatgpt_reformats_the_prompt()
     .bind("chatgpt-turn-existing")
     .bind(&agent_id)
     .bind("Auto")
-    .bind("Kiểm tra duplicate task")
+    .bind("Check duplicate task")
     .bind(submitted)
     .bind("conversation-url-id")
     .bind("https://chatgpt.com/c/conversation-url-id")
@@ -316,7 +502,7 @@ async fn chatgpt_bridge_reuses_existing_task_when_chatgpt_reformats_the_prompt()
     assert_eq!(row.get::<String, _>("source"), "chatgpt_web");
     assert_eq!(
         row.get::<String, _>("conversation_scope_hash"),
-        "openai:mcp-session-derived"
+        "openai:url-conversation-id"
     );
     let task_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE agent_id=?")
         .bind(&agent_id)
@@ -329,7 +515,7 @@ async fn chatgpt_bridge_reuses_existing_task_when_chatgpt_reformats_the_prompt()
 #[tokio::test]
 async fn chatgpt_bridge_uses_explicit_task_when_identical_messages_are_active() {
     let (host, agent_id, _directory) = test_host().await;
-    let submitted = "Sử dụng plugin @test_rust\n\nThư mục dự án: D:\\DEV\\CmdGPT\\ChatCmdClient\n\nđể thực hiện yêu cầu sau: commit";
+    let submitted = "Use plugin @test_rust\n\nProject folder: D:\\DEV\\CmdGPT\\ChatCmdClient\n\nto perform the following request: commit";
     let first_task = "task-chatgpt-bridge-commit-a";
     let second_task = "task-chatgpt-bridge-commit-b";
     let now = now_ms();
@@ -398,7 +584,7 @@ async fn chatgpt_bridge_claims_first_tool_call_before_user_message_sync() {
     let (host, agent_id, _directory) = test_host().await;
     let task_id = "task-chatgpt-bridge-pre-user-tool";
     let request_id = "chatgpt-request-pre-user-tool";
-    let submitted = "Sử dụng plugin @User message sync test để thực hiện yêu cầu sau:\n\nKiểm tra tool đến trước user message";
+    let submitted = "Use plugin @User message sync test to perform the following request:\n\nCheck tool before user message";
     let now = now_ms();
 
     sqlx::query(
@@ -408,7 +594,7 @@ async fn chatgpt_bridge_claims_first_tool_call_before_user_message_sync() {
     .bind(&agent_id)
     .bind(host.device.id.as_str())
     .bind("openai:WEB:temporary-browser-scope")
-    .bind("Tool trước user message")
+    .bind("Tool before user message")
     .bind(now)
     .bind(now)
     .execute(host.repository.pool())
@@ -423,7 +609,7 @@ async fn chatgpt_bridge_claims_first_tool_call_before_user_message_sync() {
     .bind("chatgpt-turn-pre-user-tool")
     .bind(&agent_id)
     .bind("Auto")
-    .bind("Kiểm tra tool đến trước user message")
+    .bind("Check tool before user message")
     .bind(submitted)
     .bind("WEB:temporary-browser-id")
     .bind("https://chatgpt.com/c/WEB:temporary-browser-id")
@@ -453,7 +639,7 @@ async fn chatgpt_bridge_claims_first_tool_call_before_user_message_sync() {
     assert_eq!(row.get::<String, _>("source"), "chatgpt_web");
     assert_eq!(
         row.get::<String, _>("conversation_scope_hash"),
-        "openai:host-session-scope"
+        "openai:WEB:temporary-browser-scope"
     );
     let task_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE agent_id=?")
         .bind(&agent_id)
@@ -470,7 +656,7 @@ async fn chatgpt_bridge_claims_first_tool_call_before_user_message_sync() {
 async fn chatgpt_bridge_claims_unbound_request_before_bridge_started() {
     let (host, agent_id, _directory) = test_host().await;
     let request_id = "chatgpt-request-unbound-before-started";
-    let submitted = "Sử dụng plugin @User message sync test để thực hiện yêu cầu sau:\n\nClaim request trước bridge_started";
+    let submitted = "Use plugin @User message sync test to perform the following request:\n\nClaim request before bridge_started";
     let now = now_ms();
 
     sqlx::query(
@@ -480,7 +666,7 @@ async fn chatgpt_bridge_claims_unbound_request_before_bridge_started() {
     .bind("chatgpt-turn-unbound")
     .bind(&agent_id)
     .bind("Auto")
-    .bind("Claim request trước bridge_started")
+    .bind("Claim request before bridge_started")
     .bind(submitted)
     .bind(now)
     .bind(now)
@@ -517,8 +703,8 @@ async fn chatgpt_bridge_claims_unbound_request_before_bridge_started() {
     assert_eq!(row.get::<String, _>("source"), "chatgpt_web");
     assert_eq!(row.get::<i64, _>("allow_execute"), 1);
     assert_eq!(
-        row.get::<String, _>("conversation_scope_hash"),
-        "openai:early-host-scope"
+        row.get::<Option<String>, _>("conversation_scope_hash"),
+        None
     );
 
     let task_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE agent_id=?")

@@ -3,6 +3,7 @@
 use crate::{
     GitOutputMode, GitRunOptions, OperationContext, PolicyAuthorizer, PolicyContext, RuntimeError,
     RuntimeResult, WorkspaceService,
+    command_deny_registry::validate_spawn,
     command_execution_registry::{Claim, CommandExecutionRegistry, ExecutionKey},
     command_source_state::capture_source_state,
     process_runner::{BoundedProcessResult, BoundedProcessRunner},
@@ -158,6 +159,7 @@ impl CommandExecutionService {
         mut request: CommandRunRequest,
     ) -> RuntimeResult<CommandExecutionResult> {
         validate_request(&request)?;
+        validate_spawn(&request.executable, &request.arguments)?;
         let task_id = required_task_id(context)?;
         let cwd = self.workspace.stat(&request.cwd).await?.path;
         if !cwd.is_dir() {

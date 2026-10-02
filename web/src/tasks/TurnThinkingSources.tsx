@@ -15,10 +15,10 @@ export function TurnThinkingSources({ browser, hasMcp, running, children, enable
   const vi = appLocale().startsWith('vi');
   if (!enabled) return <>{children}</>;
   return <div className="turn-thinking-sources">
-    <div className="turn-thinking-source-switch" role="group" aria-label={vi ? 'Nguồn nội dung' : 'Thinking source'}>
+    <div className="turn-thinking-source-switch" role="group" aria-label={vi ? 'Content source' : 'Thinking source'}>
       <button type="button" aria-pressed={source === 'chatgpt'} onClick={() => setChoice({ source: 'chatgpt', hadMcp: hasMcp })}>
         <BrainCircuit aria-hidden="true" /><span>ChatGPT Think</span>
-        {running && !browser.completed && <span className="turn-source-live" aria-label={vi ? 'Đang nhận' : 'Receiving'} />}
+        {running && !browser.completed && <span className="turn-source-live" aria-label={vi ? 'Receiving' : 'Receiving'} />}
       </button>
       <button type="button" aria-pressed={source === 'chatcmd'} disabled={!hasMcp} onClick={() => setChoice({ source: 'chatcmd', hadMcp: hasMcp })}>
         <Cpu aria-hidden="true" /><span>ChatCMD Think</span>
@@ -26,14 +26,14 @@ export function TurnThinkingSources({ browser, hasMcp, running, children, enable
     </div>
     {source === 'chatgpt' ? <section className="turn-browser-thinking" aria-label="ChatGPT Think">
       <p className="turn-source-caption">{vi
-        ? (hasMcp ? 'Nội dung ChatGPT đã hiển thị trên trang, được lưu riêng với MCP.' : 'Hiển thị từ ChatGPT trong khi chưa có nội dung MCP. Bản ghi này vẫn được giữ lại.')
+        ? (hasMcp ? 'ChatGPT content shown on the page is stored separately from MCP content.' : 'Showing ChatGPT content because no MCP content is available yet. This transcript is still preserved.')
         : (hasMcp ? 'Public ChatGPT page content, saved separately from MCP.' : 'Showing ChatGPT while no MCP content is available. This transcript is retained.')}</p>
       {browser.messages.length ? browser.messages.map((message, index) => {
         const live = running && !browser.completed && index === browser.messages.length - 1;
         return <SmoothBrowserMessage key={message.id} kind={message.kind} content={message.content} live={live} revision={browser.revision} />;
       }) : <div className="turn-source-empty" role="status">
         {running && <LoaderCircle className="spin" aria-hidden="true" />}
-        <span>{vi ? (running ? 'Đang chờ nội dung hiển thị từ ChatGPT…' : 'Lượt này chưa có bản ghi từ trình duyệt.')
+        <span>{vi ? (running ? 'Waiting for content displayed by ChatGPT…' : 'This turn has no browser transcript yet.')
           : (running ? 'Waiting for visible ChatGPT content…' : 'No browser transcript was recorded for this turn.')}</span>
       </div>}
     </section> : <section aria-label="ChatCMD Think">{children}</section>}

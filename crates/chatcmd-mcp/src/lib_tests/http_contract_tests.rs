@@ -99,7 +99,7 @@ async fn streamable_http_uses_trusted_identity_and_parsed_request_meta() {
         "id": 2,
         "method": "tools/call",
         "params": {
-            "name": "device_list",
+            "name": "execution_targets",
             "_meta": {"openai/session": "chat-a"},
             "arguments": {
                 "agentId": "spoofed-agent",
@@ -147,7 +147,7 @@ async fn streamable_http_session_cannot_be_reused_by_another_agent() {
         "jsonrpc": "2.0",
         "id": 2,
         "method": "tools/call",
-        "params": {"name": "device_list", "arguments": {}}
+        "params": {"name": "execution_targets", "arguments": {}}
     })
     .to_string();
     let response = router
@@ -265,7 +265,7 @@ async fn streamable_http_revoked_token_cannot_reuse_active_session_and_rotation_
         "jsonrpc": "2.0",
         "id": 2,
         "method": "tools/call",
-        "params": {"name": "device_list", "arguments": {}}
+        "params": {"name": "execution_targets", "arguments": {}}
     })
     .to_string();
 
@@ -302,7 +302,7 @@ async fn streamable_http_restart_invalidates_old_remote_session() {
         "jsonrpc": "2.0",
         "id": 2,
         "method": "tools/call",
-        "params": {"name": "device_list", "arguments": {}}
+        "params": {"name": "execution_targets", "arguments": {}}
     })
     .to_string();
     let stale = restarted
@@ -326,7 +326,7 @@ async fn streamable_http_near_cap_body_is_consumed_once_by_transport() {
         "id": 2,
         "method": "tools/call",
         "params": {
-            "name": "device_list",
+            "name": "execution_targets",
             "arguments": {"padding": padding}
         }
     })

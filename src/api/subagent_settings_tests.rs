@@ -5,10 +5,9 @@ use crate::runtime_host::user_message_tests::test_host;
 async fn subagent_settings_default_to_zero_and_round_trip_all_supported_values() {
     let (host, _agent, dir) = test_host().await;
     let state = Arc::new(host.test_app_state(dir.path().join("test.db").display().to_string()));
-    assert_eq!(
-        settings_value(&state).await.unwrap()["subagentConcurrency"],
-        0
-    );
+    let initial = settings_value(&state).await.unwrap();
+    assert_eq!(initial["subagentConcurrency"], 0);
+    assert_eq!(initial["subagentEffort"], "inherit");
     for limit in 0..=5 {
         let result = save_settings(
             State(state.clone()),
@@ -28,4 +27,21 @@ async fn subagent_settings_default_to_zero_and_round_trip_all_supported_values()
             .is_err()
         );
     }
+    for effort in ["inherit", "low", "medium", "high", "extraHigh"] {
+        let result = save_settings(
+            State(state.clone()),
+            Json(json!({"port":8080,"subagentEffort":effort})),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.0["subagentEffort"], effort);
+    }
+    assert!(
+        save_settings(
+            State(state.clone()),
+            Json(json!({"port":8080,"subagentEffort":"thinking"})),
+        )
+        .await
+        .is_err()
+    );
 }

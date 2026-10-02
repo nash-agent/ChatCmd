@@ -1,26 +1,10 @@
 use super::*;
 
 #[tokio::test]
-async fn user_message_is_required_first_and_is_idempotent_per_turn() {
+async fn user_message_is_optional_and_is_idempotent_when_used() {
     let (host, agent_id, _directory) = test_host().await;
     let scope = "conversation-user-message-sync";
     let turn = "turn-user-message-sync";
-
-    let error = host
-        .call_persisted(
-            "agent_progress",
-            turn_context(
-                "progress-before-user",
-                &agent_id,
-                "agent_progress",
-                turn,
-                scope,
-            ),
-            json!({"message":"should be rejected"}),
-        )
-        .await
-        .expect_err("progress before user message must be rejected");
-    assert_eq!(error.code, "user_message_sync_required");
 
     let accepted = host
         .call_persisted(
@@ -32,7 +16,7 @@ async fn user_message_is_required_first_and_is_idempotent_per_turn() {
                 turn,
                 scope,
             ),
-            json!({"content":"Nguyên văn tin nhắn người dùng"}),
+            json!({"content":"Original user message"}),
         )
         .await
         .expect("sync user message");
@@ -55,7 +39,10 @@ async fn user_message_is_required_first_and_is_idempotent_per_turn() {
             .as_str()
             .is_some_and(|value| value.contains("api_tool.list_resources"))
     );
-    assert_eq!(accepted["toolRecovery"]["recommendedQueries"][0], "fs_");
+    assert_eq!(
+        accepted["toolRecovery"]["recommendedQueries"][0],
+        "workspace_"
+    );
     let task_id = accepted["taskId"].as_str().expect("task ID").to_owned();
     let turn_id = accepted["turnId"].as_str().expect("turn ID").to_owned();
 
@@ -83,7 +70,7 @@ async fn user_message_is_required_first_and_is_idempotent_per_turn() {
                 turn,
                 scope,
             ),
-            json!({"content":"Nguyên văn tin nhắn người dùng"}),
+            json!({"content":"Original user message"}),
         )
         .await
         .expect("idempotent retry");
@@ -104,7 +91,7 @@ async fn user_message_is_required_first_and_is_idempotent_per_turn() {
                 turn,
                 scope,
             ),
-            json!({"content":"Nội dung khác"}),
+            json!({"content":"Different content"}),
         )
         .await
         .expect_err("same turn cannot be rebound to different user text");
@@ -122,7 +109,7 @@ async fn user_message_is_required_first_and_is_idempotent_per_turn() {
     let payload: serde_json::Value = serde_json::from_str(&row.get::<String, _>("payload_json"))
         .expect("stored user message payload");
     assert_eq!(payload["role"], "user");
-    assert_eq!(payload["content"], "Nguyên văn tin nhắn người dùng");
+    assert_eq!(payload["content"], "Original user message");
 }
 
 #[tokio::test]
@@ -130,7 +117,7 @@ async fn first_message_seeds_task_id_and_only_first_final_can_name_chat() {
     let (host, agent_id, _directory) = test_host().await;
     let scope = "conversation-first-message-identity";
     let first_turn = "turn-first";
-    let first_text = "Khắc phục lỗi git diff stat trong dự án";
+    let first_text = "Fix git diff stat error in the project";
 
     let first = host
         .call_persisted(
@@ -169,7 +156,7 @@ async fn first_message_seeds_task_id_and_only_first_final_can_name_chat() {
                 first_turn,
                 scope,
             ),
-            json!({"content":"Đã xử lý xong.", "suggestedTitle":"Sửa lỗi Git diff stat"}),
+            json!({"content":"Processing complete.", "suggestedTitle":"Fix Git diff stat"}),
         )
         .await
         .expect("first completion");
@@ -186,7 +173,7 @@ async fn first_message_seeds_task_id_and_only_first_final_can_name_chat() {
                 second_turn,
                 scope,
             ),
-            json!({"content":"Commit thay đổi"}),
+            json!({"content":"Commit changes"}),
         )
         .await
         .expect("second user message");
@@ -204,7 +191,7 @@ async fn first_message_seeds_task_id_and_only_first_final_can_name_chat() {
                 second_turn,
                 scope,
             ),
-            json!({"content":"Đã commit.", "suggestedTitle":"Tên này không được áp dụng"}),
+            json!({"content":"Committed.", "suggestedTitle":"This title is not applied"}),
         )
         .await
         .expect("second completion");
@@ -215,7 +202,7 @@ async fn first_message_seeds_task_id_and_only_first_final_can_name_chat() {
         .fetch_one(host.repository.pool())
         .await
         .expect("final title");
-    assert_eq!(final_title, "Sửa lỗi Git diff stat");
+    assert_eq!(final_title, "Fix Git diff stat");
 }
 
 #[tokio::test]

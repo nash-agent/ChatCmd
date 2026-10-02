@@ -80,8 +80,8 @@ mod tests {
             .assume_utc();
 
         assert_eq!(
-            format_log_line(now, "src/main.rs", 100, "Show lỗi ra ở đây"),
-            "8:40 26/06/2024 [\\src\\main.rs - 100]: Show lỗi ra ở đây"
+            format_log_line(now, "src/main.rs", 100, "Show error here"),
+            "8:40 26/06/2024 [\\src\\main.rs - 100]: Show error here"
         );
     }
 }

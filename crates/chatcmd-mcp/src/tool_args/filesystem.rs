@@ -75,6 +75,28 @@ tool_args!(FindArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     budget: Option<chatcmd_runtime::FsFindBudget>
 });
+tool_args!(ReadImageArgs {
+    path: String
+});
+tool_args!(GenerateImageArgs {
+    /// Destination file path or directory for generated image output.
+    path: String,
+    /// Text prompt describing the image to generate. Required unless jobId is provided.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    prompt: Option<String>,
+    /// Optional identifier for checking an existing image-generation job with the same path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    job_id: Option<String>,
+    /// Whether existing destination files may be replaced. Default false.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    overwrite: Option<bool>,
+    /// Maximum time in milliseconds to wait for completion. Default 0; maximum 280000.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    wait_ms: Option<u64>,
+    /// Optional image-generation model selector. If omitted, the configured default is used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    model: Option<String>
+});
 tool_args!(ReadArgs {
     path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -147,7 +169,7 @@ enum WriteTextSourceArgs {
     },
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WriteTextArgs {
     #[serde(flatten)]
@@ -165,6 +187,43 @@ struct WriteTextArgs {
     durability: Option<chatcmd_runtime::DurabilityMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     require_atomic: Option<bool>,
+}
+
+#[allow(dead_code)]
+#[derive(schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct WriteTextArgsSchema {
+    #[serde(flatten)]
+    common: CommonToolArgs,
+    path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+    #[serde(
+        default,
+        rename = "contentRef",
+        skip_serializing_if = "Option::is_none"
+    )]
+    content_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    overwrite: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    expected_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    metadata_policy: Option<chatcmd_runtime::MetadataPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    durability: Option<chatcmd_runtime::DurabilityMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    require_atomic: Option<bool>,
+}
+
+impl schemars::JsonSchema for WriteTextArgs {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "WriteTextArgs".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <WriteTextArgsSchema as schemars::JsonSchema>::json_schema(generator)
+    }
 }
 tool_args!(ReplaceTextArgs {
     path: String,
@@ -195,7 +254,7 @@ enum ApplyEditsSourceArgs {
     },
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ApplyEditsArgs {
     #[serde(flatten)]
@@ -215,6 +274,45 @@ struct ApplyEditsArgs {
     preserve_bom: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     budget: Option<chatcmd_runtime::ApplyEditsBudget>,
+}
+
+#[allow(dead_code)]
+#[derive(schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct ApplyEditsArgsSchema {
+    #[serde(flatten)]
+    common: CommonToolArgs,
+    path: String,
+    expected_version: String,
+    coordinate_system: chatcmd_runtime::EditCoordinateSystem,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    column_encoding: Option<chatcmd_runtime::EditColumnEncoding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    edits: Option<Vec<chatcmd_runtime::TextEdit>>,
+    #[serde(
+        default,
+        rename = "contentRef",
+        skip_serializing_if = "Option::is_none"
+    )]
+    content_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dry_run: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    preserve_line_endings: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    preserve_bom: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    budget: Option<chatcmd_runtime::ApplyEditsBudget>,
+}
+
+impl schemars::JsonSchema for ApplyEditsArgs {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ApplyEditsArgs".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <ApplyEditsArgsSchema as schemars::JsonSchema>::json_schema(generator)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
@@ -239,7 +337,7 @@ enum WriteRawSourceArgs {
     },
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WriteRawArgs {
     #[serde(flatten)]
@@ -257,6 +355,43 @@ struct WriteRawArgs {
     durability: Option<chatcmd_runtime::DurabilityMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     require_atomic: Option<bool>,
+}
+
+#[allow(dead_code)]
+#[derive(schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct WriteRawArgsSchema {
+    #[serde(flatten)]
+    common: CommonToolArgs,
+    path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    base64: Option<String>,
+    #[serde(
+        default,
+        rename = "contentRef",
+        skip_serializing_if = "Option::is_none"
+    )]
+    content_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    overwrite: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    expected_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    metadata_policy: Option<chatcmd_runtime::MetadataPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    durability: Option<chatcmd_runtime::DurabilityMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    require_atomic: Option<bool>,
+}
+
+impl schemars::JsonSchema for WriteRawArgs {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "WriteRawArgs".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <WriteRawArgsSchema as schemars::JsonSchema>::json_schema(generator)
+    }
 }
 tool_args!(BlobBeginArgs {
     purpose: String,

@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const extensionRoot = __dirname;
 // Unit harness exposes runner locals; integration tests load its real IIFE through the manifest.
-const source = readFileSync(join(extensionRoot, 'content-chatgpt.js'), 'utf8').replace(/^\(\(\) => \{\n/, '').replace(/\}\)\(\);\s*$/, '').replace('const waitForAssistant =', 'let waitForAssistant =');
+const source = readFileSync(join(extensionRoot, 'content-chatgpt.js'), 'utf8').replace(/^\(\(\) => \{\r?\n/, '').replace(/\}\)\(\);\s*$/, '').replace('const waitForAssistant =', 'let waitForAssistant =');
 const monitorSource = readFileSync(join(extensionRoot, 'content-chatgpt-monitor.js'), 'utf8');
 const runtimeSource = readFileSync(join(extensionRoot, 'content-runtime.js'), 'utf8');
 const recoverySource = readFileSync(join(extensionRoot, 'background-recovery.js'), 'utf8');
@@ -66,7 +66,7 @@ function loadBridge(statusHandler = () => Promise.resolve({ ok: true, known: tru
   return context;
 }
 
-function prepareMonitor(context, state, { text = 'Phản hồi hoàn tất', sendReady = true, threadError = false } = {}) {
+function prepareMonitor(context, state, { text = 'Completed response', sendReady = true, threadError = false } = {}) {
   context.__requestState = state;
   context.__assistantNodes = text ? [{ innerText: text, textContent: text }] : [];
   context.__sendButton = sendReady ? {} : null;
@@ -106,6 +106,26 @@ test('ready status is still blocked while ChatGPT exposes a stop button', () => 
   assert.equal(response.generating, true);
 });
 
+test('submitPrompt falls back to the composer form when ChatGPT changes the send button selector', async () => {
+  const context = loadBridge();
+  context.__now = 0;
+  context.__formSubmits = 0;
+  context.__composerBlurred = false;
+  vm.runInContext(`
+    Date.now = () => globalThis.__now;
+    delay = async (ms) => { globalThis.__now += ms; };
+    const fallbackForm = { requestSubmit() { globalThis.__formSubmits += 1; } };
+    const fallbackComposer = {
+      closest(selector) { return selector === 'form' ? fallbackForm : null; },
+      blur() { globalThis.__composerBlurred = true; },
+    };
+    globalThis.__submitPromise = submitPrompt(fallbackComposer);
+  `, context);
+  await context.__submitPromise;
+  assert.equal(context.__formSubmits, 1);
+  assert.equal(context.__composerBlurred, true);
+});
+
 test('a stale request slot does not block a new run once the composer is idle', async () => {
   const context = loadBridge();
   vm.runInContext(`
@@ -135,7 +155,7 @@ test('a superseded request monitor exits instead of touching the newer request',
 test('automatic retry is temporarily disabled when no progress was observed', async () => {
   const context = loadBridge();
   prepareMonitor(context, { known: true, running: true, stopRequested: false, hasFinalResponse: false, active: true }, { text: '' });
-  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL PROMPT')", context), /Quá lâu/i);
+  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL PROMPT')", context), /Timed out/i);
   assert.equal(context.__submitCalls, 0);
   assert.deepEqual(Array.from(context.__composerWrites), []);
 });
@@ -144,29 +164,29 @@ test('an interruption after execution progress does not send a continuation prom
   const context = loadBridge();
   prepareMonitor(context, { known: true, running: true, stopRequested: false, hasFinalResponse: false, active: true }, { text: '', threadError: true });
   context.__stopButton = () => context.__now < 3_000 ? {} : null;
-  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL PROMPT')", context), /Quá lâu/i);
+  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL PROMPT')", context), /Timed out/i);
   assert.equal(context.__submitCalls, 0);
   assert.equal(context.__composerWrites.length, 0);
 });
 
 test('partial assistant text followed by an error does not send the continuation prompt while retry is disabled', async () => {
   const context = loadBridge();
-  prepareMonitor(context, { known: true, running: true, stopRequested: false, hasFinalResponse: false, active: true }, { text: 'Đã sửa một phần', threadError: true });
-  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL PROMPT')", context), /Quá lâu/i);
+  prepareMonitor(context, { known: true, running: true, stopRequested: false, hasFinalResponse: false, active: true }, { text: 'Partially fixed', threadError: true });
+  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL PROMPT')", context), /Timed out/i);
   assert.equal(context.__composerWrites.length, 0);
 });
 
 test('a ChatGPT error does not retry while automatic retry is disabled', async () => {
   const context = loadBridge();
   prepareMonitor(context, { known: true, running: true, stopRequested: false, hasFinalResponse: false, active: true }, { text: '', threadError: true });
-  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'RETRY ME')", context), /Quá lâu/i);
+  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'RETRY ME')", context), /Timed out/i);
   assert.equal(context.__submitCalls, 0);
 });
 
 test('unknown backend state never authorizes an automatic resend', async () => {
   const context = loadBridge(() => Promise.resolve({ ok: false, error: 'offline' }));
   prepareMonitor(context, { known: false, running: null, stopRequested: false, hasFinalResponse: false, active: null }, { text: '', sendReady: false });
-  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'DO NOT RETRY')", context), /Quá lâu/);
+  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'DO NOT RETRY')", context), /Timed out/);
   assert.equal(context.__submitCalls, 0);
 });
 
@@ -177,7 +197,7 @@ test('raw assistant bubble completes even when the empty composer has no send bu
     { known: true, running: true, stopRequested: false, hasFinalResponse: false, active: true },
     { sendReady: false },
   );
-  assert.equal(await vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL')", context), 'Phản hồi hoàn tất');
+  assert.equal(await vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL')", context), 'Completed response');
   assert.equal(context.__completionPings, 1);
   assert.equal(context.__submitCalls, 0);
   assert.equal(vm.runInContext('activeRequest.resultReported', context), true);
@@ -187,7 +207,7 @@ test('a failed completion ping never turns an existing raw bubble into a resend'
   const context = loadBridge();
   context.__completionResponse = { ok: false, error: 'backend unavailable' };
   prepareMonitor(context, { known: true, running: true, stopRequested: false, hasFinalResponse: false, active: true });
-  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'NEVER DUPLICATE')", context), /Quá lâu/);
+  await assert.rejects(vm.runInContext("waitForAssistant(0, 'request-1', 'NEVER DUPLICATE')", context), /Timed out/);
   assert.ok(context.__completionPings > 1);
   assert.equal(context.__submitCalls, 0);
 });
@@ -195,7 +215,7 @@ test('a failed completion ping never turns an existing raw bubble into a resend'
 test('backend final response completes without a browser ping or retry', async () => {
   const context = loadBridge();
   prepareMonitor(context, { known: true, running: false, stopRequested: false, hasFinalResponse: true, active: false });
-  assert.equal(await vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL')", context), 'Phản hồi hoàn tất');
+  assert.equal(await vm.runInContext("waitForAssistant(0, 'request-1', 'ORIGINAL')", context), 'Completed response');
   assert.equal(context.__completionPings, 0);
   assert.equal(context.__submitCalls, 0);
 });
@@ -219,7 +239,7 @@ test('Vietnamese stop controls are detected by the shared DOM helper', () => {
     getBoundingClientRect() { return { width: 10, height: 10 }; }
     querySelectorAll() { return []; }
   }
-  for (const label of ['Dừng tạo phản hồi', 'Ngừng tạo']) {
+  for (const label of ['Stop generating response', 'Stop generating']) {
     const button = new FakeElement(label);
     const context = {
       Element: FakeElement,
@@ -242,7 +262,7 @@ test('a stop-like button outside the unified composer does not mark ChatGPT as g
     querySelectorAll() { return []; }
   }
   const composer = new FakeElement();
-  const outsideStop = new FakeElement('Dừng chia sẻ màn hình');
+  const outsideStop = new FakeElement('Stop screen sharing');
   const context = {
     Element: FakeElement,
     Node: { DOCUMENT_POSITION_FOLLOWING: 4 },
@@ -250,7 +270,7 @@ test('a stop-like button outside the unified composer does not mark ChatGPT as g
     document: {
       querySelectorAll(selector) {
         if (selector === 'form[data-type="unified-composer"]') return [composer];
-        if (selector === 'button' || selector.includes('Dừng')) return [outsideStop];
+        if (selector === 'button' || selector.includes('Stop')) return [outsideStop];
         return [];
       },
     },
@@ -262,7 +282,7 @@ test('a stop-like button outside the unified composer does not mark ChatGPT as g
 
 test('content scripts load helpers before the request runner', () => {
   const entry = manifest.content_scripts.find((item) => item.matches.includes('https://chatgpt.com/*'));
-  assert.deepEqual(entry.js, ['content-runtime.js', 'content-chatgpt-clock.js', 'content-chatgpt-render.js', 'content-chatgpt-ui.js', 'content-chatgpt-dom.js', 'content-chatgpt-transcript.js', 'content-chatgpt-observer.js', 'content-chatgpt-approval-ui.js', 'content-chatgpt-monitor.js', 'content-chatgpt.js', 'compact-protocol.js', 'content-chatgpt-compact.js', 'content-chatgpt-resume.js', 'content-chatgpt-native.js']);
+  assert.deepEqual(entry.js, ['content-runtime.js', 'content-chatgpt-clock.js', 'content-chatgpt-render.js', 'content-chatgpt-ui.js', 'content-chatgpt-dom.js', 'content-chatgpt-transcript.js', 'content-chatgpt-observer.js', 'content-chatgpt-approval-ui.js', 'content-chatgpt-monitor.js', 'content-chatgpt-effort.js', 'content-chatgpt.js', 'compact-protocol.js', 'content-chatgpt-compact.js', 'content-chatgpt-resume.js', 'content-chatgpt-native.js', 'content-chatgpt-image.js']);
 });
 
 test('new project tabs wait for a stable ChatGPT composer before sending', () => {

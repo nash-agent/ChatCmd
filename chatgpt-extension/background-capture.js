@@ -18,8 +18,8 @@ async function handleNativeTurn(message, sender) {
   if (Date.now() - last > 30000) {
     let capabilities;
     try { capabilities = await getJson(localBaseUrl, '/api/local/chatgpt/capture/capabilities'); }
-    catch { throw new Error('ChatCMD chưa hỗ trợ capture v2 hoặc đang offline. Hãy chạy bản ứng dụng mới và kiểm tra địa chỉ local API.'); }
-    if (capabilities?.provider !== 'chatcmd' || capabilities.captureProtocol !== 2) throw new Error('ChatCMD capture protocol không tương thích; cần cập nhật ứng dụng.');
+    catch { throw new Error('ChatCMD does not support capture v2 or is offline. Run the latest app and check the local API address.'); }
+    if (capabilities?.provider !== 'chatcmd' || capabilities.captureProtocol !== 2) throw new Error('ChatCMD capture protocol is incompatible; update the app.');
     captureCapabilities.set(localBaseUrl, Date.now());
   }
   const request = await postJson(localBaseUrl, '/api/local/chatgpt/capture/turns', {

@@ -16,6 +16,7 @@ mod chatgpt_compact_tests;
 #[cfg(test)]
 mod chatgpt_compact_work_tests;
 mod chatgpt_completion;
+mod chatgpt_images;
 mod chatgpt_native;
 #[cfg(test)]
 mod chatgpt_native_tests;

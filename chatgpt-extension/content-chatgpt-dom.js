@@ -56,12 +56,12 @@
       'button[data-testid="stop-button"]',
       'button[data-testid="stop-generating-button"]',
       'button[aria-label*="Stop" i]',
-      'button[aria-label*="Dừng" i]',
-      'button[aria-label*="Ngừng" i]',
+      'button[aria-label*="Stop" i]',
+      'button[aria-label*="Stop" i]',
     ]);
     if (direct) return direct;
     return [...root.querySelectorAll('button')].filter(isVisible).find((button) =>
-      /^(stop|dừng|ngừng)(?:\s|$)/i.test(normalize(button.getAttribute('aria-label') || button.textContent))) || null;
+      /^(stop|stop|stop)(?:\s|$)/i.test(normalize(button.getAttribute('aria-label') || button.textContent))) || null;
   }
 
   function clickStopButton() {
@@ -70,11 +70,24 @@
   }
 
   function findSendButton() {
-    return findVisible([
+    const composers = [...document.querySelectorAll('form[data-type="unified-composer"]')].filter(isVisible);
+    const root = composers.at(-1) || document;
+    const direct = findVisibleWithin(root, [
       'button[data-testid="send-button"]',
-      'button[aria-label="Send prompt"]',
-      'button[aria-label="Send message"]',
+      'button[data-testid="composer-send-button"]',
+      'button[data-testid="composer-submit-button"]',
+      'button[aria-label="Send prompt" i]',
+      'button[aria-label="Send message" i]',
+      'button[aria-label="Send" i]',
+      'button[aria-label*="send" i]',
+      'button[aria-label*="보내" i]',
+      'button[type="submit"]',
     ]);
+    if (direct) return direct;
+    return [...root.querySelectorAll('button,[role="button"]')].filter(isVisible).find((button) => {
+      const label = normalize(button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent);
+      return /^(?:send(?: prompt| message)?|보내기|메시지 보내기|프롬프트 보내기)$/i.test(label);
+    }) || null;
   }
 
   globalThis.ChatCmdConversationDom = Object.freeze({

@@ -94,7 +94,7 @@ async fn text_sampling_worker_runs_tool_without_sampling_tools_capability() {
                     "taskId": "task-parent",
                     "turnId": "turn-parent",
                     "name": "File Reader",
-                    "request": "Read b.rs"
+                    "request": "Inspect execution targets"
                 })
                 .as_object()
                 .expect("arguments")
@@ -108,10 +108,10 @@ async fn text_sampling_worker_runs_tool_without_sampling_tools_capability() {
     let calls = recorded.lock().expect("recorded");
     let read = calls
         .iter()
-        .find(|(name, _, _)| name == "fs_read_text")
-        .expect("read call");
+        .find(|(name, _, _)| name == "device_list")
+        .expect("execution targets call");
     assert_eq!(read.1.task_id.as_deref(), Some("task-subagent-test"));
-    assert_eq!(read.2.get("path"), Some(&json!("b.rs")));
+    assert_eq!(read.2, json!({}));
     assert_eq!(
         calls.last().map(|(name, _, _)| name.as_str()),
         Some("agent_turn_complete")

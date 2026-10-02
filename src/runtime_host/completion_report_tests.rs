@@ -127,7 +127,12 @@ async fn persisted_command_evidence_is_owner_bound_and_conservative() {
         .await
         .expect("list tools")
         .into_iter()
-        .filter(|tool| matches!(tool.key.as_str(), "fs_read_text" | "command_run"))
+        .filter(|tool| {
+            matches!(
+                tool.key.as_str(),
+                "workspace_read_text_legacy" | "execution_run"
+            )
+        })
         .map(|tool| tool.id)
         .collect::<Vec<_>>();
     host.repository
@@ -264,7 +269,12 @@ async fn check_delegated_evidence(nested: bool) {
     let tools = host.repository.list_tools().await.expect("tools");
     let allowed = tools
         .into_iter()
-        .filter(|tool| matches!(tool.key.as_str(), "fs_read_text" | "command_run"))
+        .filter(|tool| {
+            matches!(
+                tool.key.as_str(),
+                "workspace_read_text_legacy" | "execution_run"
+            )
+        })
         .map(|tool| tool.id)
         .collect::<Vec<_>>();
     host.repository

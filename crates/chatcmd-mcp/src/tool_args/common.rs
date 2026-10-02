@@ -41,10 +41,10 @@ struct CommonToolArgs {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     #[schemars(skip)]
     agent_id: String,
-    /// Task correlation identifier returned by agent_user_message.
+    /// Optional task correlation identifier for related lifecycle/reporting calls.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     task_id: Option<String>,
-    /// Turn correlation identifier reused for every call in the current user turn.
+    /// Optional turn correlation identifier for related lifecycle/reporting calls.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     turn_id: Option<String>,
     /// Catalog hash last observed by the caller. Send it to detect stale cached schemas.

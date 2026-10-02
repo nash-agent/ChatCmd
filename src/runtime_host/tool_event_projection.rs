@@ -336,8 +336,8 @@ mod tests {
             max_preview_bytes: 5,
             ..EventLimits::default()
         };
-        let projection = project("git_show", &json!({"message":"éééé"}), limits);
-        assert_eq!(projection.public_summary["message"]["preview"], "éé");
+        let projection = project("git_show", &json!({"message":"¢¢¢¢"}), limits);
+        assert_eq!(projection.public_summary["message"]["preview"], "¢¢");
     }
 
     #[test]

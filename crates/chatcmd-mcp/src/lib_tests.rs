@@ -111,6 +111,49 @@ async fn list_tools_from_fresh_connection() -> Vec<String> {
 }
 
 #[test]
+fn workspace_identity_preserves_real_effects_and_permission_boundaries() {
+    let server = McpServer::new(Arc::new(CatalogRuntime));
+    let info = rmcp::ServerHandler::get_info(&server);
+    assert_eq!(info.server_info.name, "astra-workspace");
+    assert_eq!(info.server_info.title.as_deref(), Some("Astra Workspace"));
+    let instructions = info.instructions.expect("workspace instructions");
+    assert!(instructions.contains("policy-mediated workspace and execution service"));
+    assert!(instructions.contains("model does not directly access the execution environment"));
+    assert!(instructions.contains("read or modify workspace resources"));
+    assert!(instructions.contains("host/service restrictions remain authoritative"));
+    assert!(instructions.contains("do not disguise the operation"));
+    assert!(!instructions.contains("user-connected machine"));
+    assert!(!instructions.contains("read or modify real files"));
+    assert!(!instructions.contains("retry the same intended operation in a simpler split form"));
+}
+
+#[test]
+fn process_descriptions_reflect_runtime_visibility_policy() {
+    let tools = McpServer::tool_router().list_all();
+    let description = |name: &str| {
+        tools
+            .iter()
+            .find(|tool| tool.name == name)
+            .unwrap()
+            .description
+            .as_deref()
+            .unwrap()
+    };
+    assert!(
+        description("execution_process_list")
+            .contains("Unrelated background processes are excluded")
+    );
+    assert!(description("execution_process_inspect").contains("process policy"));
+    assert!(description("execution_process_stop").contains("lose unsaved changes"));
+    assert_eq!(
+        tool_capabilities("execution_run").operation_class,
+        ToolOperationClass::ProcessExecution
+    );
+    assert!(tool_capabilities("execution_run").approval_required);
+    assert!(tool_capabilities("execution_process_stop").mutating);
+}
+
+#[test]
 fn catalog_names_are_sorted_stable_and_unique() {
     let mut sorted = TOOL_NAMES.to_vec();
     sorted.sort_unstable();
@@ -118,12 +161,20 @@ fn catalog_names_are_sorted_stable_and_unique() {
     sorted.dedup();
     assert_eq!(sorted.len(), TOOL_NAMES.len());
     assert!(TOOL_NAMES.iter().any(|name| name == "agent_user_message"));
-    assert!(TOOL_NAMES.iter().any(|name| name == "fs_replace_text"));
-    assert!(TOOL_NAMES.iter().any(|name| name == "fs_apply_edits"));
-    assert!(TOOL_NAMES.iter().any(|name| name == "fs_list_v2"));
-    assert!(TOOL_NAMES.iter().any(|name| name == "fs_read_text_v2"));
-    assert!(TOOL_NAMES.iter().any(|name| name == "fs_batch_read"));
-    assert!(TOOL_NAMES.iter().any(|name| name == "fs_batch_stat"));
+    assert!(
+        TOOL_NAMES
+            .iter()
+            .any(|name| name == "workspace_replace_text")
+    );
+    assert!(
+        TOOL_NAMES
+            .iter()
+            .any(|name| name == "workspace_apply_edits")
+    );
+    assert!(TOOL_NAMES.iter().any(|name| name == "workspace_list"));
+    assert!(TOOL_NAMES.iter().any(|name| name == "workspace_read_text"));
+    assert!(TOOL_NAMES.iter().any(|name| name == "workspace_batch_read"));
+    assert!(TOOL_NAMES.iter().any(|name| name == "workspace_batch_stat"));
     assert!(TOOL_NAMES.iter().any(|name| name == "task_artifact_create"));
     assert!(
         TOOL_NAMES
@@ -139,6 +190,45 @@ fn catalog_names_are_sorted_stable_and_unique() {
     ] {
         assert!(TOOL_NAMES.iter().any(|candidate| candidate == name));
     }
+}
+
+#[test]
+fn public_catalog_uses_workspace_execution_and_repository_names() {
+    for expected in [
+        "workspace_read_text",
+        "workspace_apply_edits",
+        "execution_run",
+        "execution_process_inspect",
+        "repository_status",
+    ] {
+        assert!(
+            TOOL_NAMES.iter().any(|name| name == expected),
+            "missing {expected}"
+        );
+    }
+    for name in TOOL_NAMES.iter() {
+        assert!(
+            !name.starts_with("fs_"),
+            "legacy filesystem tool exposed: {name}"
+        );
+        assert!(
+            !name.starts_with("shell_"),
+            "legacy shell tool exposed: {name}"
+        );
+        assert!(!name.starts_with("git_"), "legacy git tool exposed: {name}");
+        assert!(
+            !name.starts_with("process_"),
+            "legacy process tool exposed: {name}"
+        );
+        assert!(!matches!(
+            name.as_str(),
+            "command_run" | "device_list" | "device_get" | "project_context"
+        ));
+    }
+    assert_eq!(runtime_tool_name("workspace_read_text"), "fs_read_text_v2");
+    assert_eq!(runtime_tool_name("execution_run"), "command_run");
+    assert_eq!(runtime_tool_name("repository_status"), "git_status");
+    assert_eq!(runtime_tool_name("execution_process_stop"), "process_kill");
 }
 
 #[test]
@@ -175,20 +265,23 @@ fn blob_schemas_expose_bounded_caller_budget() {
 }
 
 #[test]
-fn fs_write_text_schema_requires_exactly_one_content_source() {
+fn workspace_write_text_schema_requires_exactly_one_content_source() {
     let manifest = canonical_manifest();
     let tools = manifest["tools"].as_array().expect("manifest tools");
     let write = tools
         .iter()
-        .find(|tool| tool["name"] == "fs_write_text")
-        .expect("fs_write_text");
-    let alternatives = write["schema"]["anyOf"]
-        .as_array()
-        .expect("source alternatives");
-    assert_eq!(alternatives.len(), 2);
-    let schema = write["schema"].to_string();
-    assert!(schema.contains("contentRef"));
-    assert!(schema.contains("content"));
+        .find(|tool| tool["name"] == "workspace_write_text")
+        .expect("workspace_write_text");
+    assert_eq!(write["schema"]["type"], "object");
+    for combinator in ["oneOf", "anyOf", "allOf"] {
+        assert!(
+            write["schema"].get(combinator).is_none(),
+            "workspace_write_text must not advertise top-level {combinator}"
+        );
+    }
+    let properties = &write["schema"]["properties"];
+    assert!(properties.get("contentRef").is_some());
+    assert!(properties.get("content").is_some());
     assert!(
         serde_json::from_value::<WriteTextArgs>(serde_json::json!({
             "path": "file.txt",
@@ -214,20 +307,23 @@ fn fs_write_text_schema_requires_exactly_one_content_source() {
 }
 
 #[test]
-fn fs_write_raw_schema_requires_exactly_one_content_source() {
+fn workspace_write_bytes_schema_requires_exactly_one_content_source() {
     let manifest = canonical_manifest();
     let tools = manifest["tools"].as_array().expect("manifest tools");
     let write = tools
         .iter()
-        .find(|tool| tool["name"] == "fs_write_raw")
-        .expect("fs_write_raw");
-    let alternatives = write["schema"]["anyOf"]
-        .as_array()
-        .expect("source alternatives");
-    assert_eq!(alternatives.len(), 2);
-    let schema = write["schema"].to_string();
-    assert!(schema.contains("base64"));
-    assert!(schema.contains("contentRef"));
+        .find(|tool| tool["name"] == "workspace_write_bytes")
+        .expect("workspace_write_bytes");
+    assert_eq!(write["schema"]["type"], "object");
+    for combinator in ["oneOf", "anyOf", "allOf"] {
+        assert!(
+            write["schema"].get(combinator).is_none(),
+            "workspace_write_bytes must not advertise top-level {combinator}"
+        );
+    }
+    let properties = &write["schema"]["properties"];
+    assert!(properties.get("base64").is_some());
+    assert!(properties.get("contentRef").is_some());
     assert!(
         serde_json::from_value::<WriteRawArgs>(serde_json::json!({
             "path": "file.bin",
@@ -269,13 +365,13 @@ fn task_artifact_create_advertises_content_ref_contract() {
 }
 
 #[test]
-fn fs_apply_edits_advertises_versioned_streaming_contract() {
+fn workspace_apply_edits_advertises_versioned_streaming_contract() {
     let manifest = canonical_manifest();
     let tools = manifest["tools"].as_array().expect("manifest tools");
     let apply = tools
         .iter()
-        .find(|tool| tool["name"] == "fs_apply_edits")
-        .expect("fs_apply_edits");
+        .find(|tool| tool["name"] == "workspace_apply_edits")
+        .expect("workspace_apply_edits");
     let properties = &apply["schema"]["properties"];
     for field in [
         "path",
@@ -289,16 +385,18 @@ fn fs_apply_edits_advertises_versioned_streaming_contract() {
     ] {
         assert!(
             properties.get(field).is_some(),
-            "missing fs_apply_edits field {field}"
+            "missing workspace_apply_edits field {field}"
         );
     }
-    let alternatives = apply["schema"]["anyOf"]
-        .as_array()
-        .expect("source alternatives");
-    assert_eq!(alternatives.len(), 2);
-    let schema = apply["schema"].to_string();
-    assert!(schema.contains("edits"));
-    assert!(schema.contains("contentRef"));
+    assert_eq!(apply["schema"]["type"], "object");
+    for combinator in ["oneOf", "anyOf", "allOf"] {
+        assert!(
+            apply["schema"].get(combinator).is_none(),
+            "workspace_apply_edits must not advertise top-level {combinator}"
+        );
+    }
+    assert!(properties.get("edits").is_some());
+    assert!(properties.get("contentRef").is_some());
     assert!(
         serde_json::from_value::<ApplyEditsArgs>(serde_json::json!({
             "path": "file.txt",
@@ -363,6 +461,18 @@ fn canonical_manifest_has_schema_for_every_tool() {
             "{} has no schema",
             TOOL_NAMES[index]
         );
+        assert_eq!(
+            tool["schema"]["type"], "object",
+            "{} input schema must have an object root",
+            TOOL_NAMES[index]
+        );
+        for combinator in ["oneOf", "anyOf", "allOf"] {
+            assert!(
+                tool["schema"].get(combinator).is_none(),
+                "{} input schema must not advertise top-level {combinator}",
+                TOOL_NAMES[index]
+            );
+        }
         assert!(tool["capabilities"].is_object());
     }
 }

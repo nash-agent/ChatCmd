@@ -40,13 +40,13 @@ describe('task realtime list updates', () => {
       occurredAt: '2026-08-27T08:00:05.000Z',
       taskId: 'task-new-chat',
       turnId: 'turn-1',
-      payload: { status: 'completed', content: 'Đã hoàn tất.' },
+      payload: { status: 'completed', content: 'Completed.' },
     };
 
     const tasks = upsertTaskEvent(upsertTaskEvent([], first), completed);
 
     expect(tasks).toHaveLength(1);
-    expect(tasks?.[0]).toMatchObject({ status: 'completed', outputPreview: 'Đã hoàn tất.', finalResponseCount: 1 });
+    expect(tasks?.[0]).toMatchObject({ status: 'completed', outputPreview: 'Completed.', finalResponseCount: 1 });
   });
 
   it('propagates stopped status from realtime without creating another final response', () => {
@@ -80,7 +80,7 @@ describe('task final-response status reconciliation', () => {
   it('treats a task as completed when persisted status is stale but the latest turn has a final response', () => {
     const completed: TimelineEvent = {
       id: 'final-1', type: 'status', occurredAt: '2026-08-27T08:00:05.000Z',
-      taskId: 'task-1', turnId: 'turn-1', payload: { status: 'completed', content: 'Xong rồi.' },
+      taskId: 'task-1', turnId: 'turn-1', payload: { status: 'completed', content: 'Done.' },
     };
     const finalizerResult: TimelineEvent = {
       id: 'finalizer-result', type: 'tool_result', occurredAt: '2026-08-27T08:00:06.000Z',
@@ -93,11 +93,11 @@ describe('task final-response status reconciliation', () => {
   it('keeps running when a genuinely newer turn starts after the previous final response', () => {
     const completed: TimelineEvent = {
       id: 'final-1', type: 'status', occurredAt: '2026-08-27T08:00:05.000Z',
-      taskId: 'task-1', turnId: 'turn-1', payload: { status: 'completed', content: 'Xong lượt trước.' },
+      taskId: 'task-1', turnId: 'turn-1', payload: { status: 'completed', content: 'Previous turn done.' },
     };
     const nextTurn: TimelineEvent = {
       id: 'next-turn', type: 'message', occurredAt: '2026-08-27T08:01:00.000Z',
-      taskId: 'task-1', turnId: 'turn-2', payload: { role: 'user', content: 'Làm tiếp.' },
+      taskId: 'task-1', turnId: 'turn-2', payload: { role: 'user', content: 'Continue.' },
     };
     const detail = mergeLiveDetail({ task: { id: 'task-1', status: 'running', updatedAtUtc: '2026-08-27T08:01:00.000Z' }, events: [completed, nextTurn] }, []);
     expect(detail.task.status).toBe('running');
@@ -134,13 +134,13 @@ describe('user message synchronization rendering', () => {
   it('extracts the user message and keeps it out of agent progress blocks', () => {
     const user: TimelineEvent = {
       id: 'user-message-1', type: 'message', occurredAt: '2026-08-27T08:00:00.000Z',
-      taskId: 'task-1', turnId: 'turn-1', payload: { role: 'user', content: 'Hãy kiểm tra repo này' },
+      taskId: 'task-1', turnId: 'turn-1', payload: { role: 'user', content: 'Check this repository' },
     };
     const progress: TimelineEvent = {
       id: 'progress-1', type: 'progress', occurredAt: '2026-08-27T08:00:01.000Z',
-      taskId: 'task-1', turnId: 'turn-1', payload: { content: 'Đang kiểm tra.' },
+      taskId: 'task-1', turnId: 'turn-1', payload: { content: 'Checking.' },
     };
-    expect(findUserMessage([user, progress])?.text).toBe('Hãy kiểm tra repo này');
+    expect(findUserMessage([user, progress])?.text).toBe('Check this repository');
     const blocks = buildProcessBlocks([user, progress]);
     expect(blocks).toHaveLength(1);
     expect(blocks[0]).toMatchObject({ type: 'progress' });
@@ -171,20 +171,20 @@ describe('running tool stop projection', () => {
   it('projects a stop request onto the existing running activity', () => {
     const stopRequested: TimelineEvent = {
       id: 'tool-stop-request', type: 'tool_call', occurredAt: '2026-08-27T08:00:01.000Z',
-      taskId: 'task-1', turnId: 'turn-1', payload: { activityId: 'activity-1', tool: 'git_diff', status: 'stop_requested', stopReason: 'Đổi cách làm' },
+      taskId: 'task-1', turnId: 'turn-1', payload: { activityId: 'activity-1', tool: 'git_diff', status: 'stop_requested', stopReason: 'Change approach' },
     };
     const blocks = buildProcessBlocks([started, stopRequested]);
     expect(blocks).toHaveLength(1);
-    expect(blocks[0]).toMatchObject({ type: 'activities', activities: [{ id: 'activity-1', status: 'stop_requested', error: 'Stop reason: Đổi cách làm' }] });
+    expect(blocks[0]).toMatchObject({ type: 'activities', activities: [{ id: 'activity-1', status: 'stop_requested', error: 'Stop reason: Change approach' }] });
   });
 
   it('finishes the same activity as stopped and preserves the agent-facing reason', () => {
     const stopped: TimelineEvent = {
       id: 'tool-stopped', type: 'tool_result', occurredAt: '2026-08-27T08:00:02.000Z',
-      taskId: 'task-1', turnId: 'turn-1', payload: { activityId: 'activity-1', tool: 'git_diff', status: 'stopped', errorCode: 'activity_stopped', errorMessage: 'the user stopped this activity. Reason: Đổi cách làm' },
+      taskId: 'task-1', turnId: 'turn-1', payload: { activityId: 'activity-1', tool: 'git_diff', status: 'stopped', errorCode: 'activity_stopped', errorMessage: 'the user stopped this activity. Reason: Change approach' },
     };
     const blocks = buildProcessBlocks([started, stopped]);
-    expect(blocks[0]).toMatchObject({ type: 'activities', activities: [{ id: 'activity-1', status: 'stopped', error: 'the user stopped this activity. Reason: Đổi cách làm' }] });
+    expect(blocks[0]).toMatchObject({ type: 'activities', activities: [{ id: 'activity-1', status: 'stopped', error: 'the user stopped this activity. Reason: Change approach' }] });
   });
 
   it('interrupts an orphaned running activity when the turn has already completed', () => {

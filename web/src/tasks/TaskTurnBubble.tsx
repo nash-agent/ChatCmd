@@ -321,7 +321,7 @@ function ActivityPopupContent({ activity, approvalPending, running }: { activity
 }
 
 function formatErrorDetails(value: unknown) { if (typeof value === 'string') return value; try { return JSON.stringify(value, null, 2); } catch { return String(value); } }
-function isChatGptSendDisabledMessage(value: string) { return value.includes('Nút gửi ChatGPT đang bị vô hiệu hóa.') || value.includes('The ChatGPT send button is disabled.'); }
+function isChatGptSendDisabledMessage(value: string) { return value.includes('The ChatGPT send button is disabled.') || value.includes('The ChatGPT send button is disabled.'); }
 
 function BubbleTime({ value, ariaHidden = false }: { value: string; ariaHidden?: boolean }) {
   const nowMs = useAdaptiveNow(value);

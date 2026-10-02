@@ -7,6 +7,7 @@
 
 mod api;
 mod catalog_seed;
+mod chatgpt_image_jobs;
 mod chatgpt_message;
 mod chatgpt_queue;
 mod chatgpt_transcript;
@@ -30,7 +31,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use axum::{Router, routing::get};
+use axum::{Router, http::StatusCode, routing::get};
 use chatcmd_core::PolicyLookup;
 use chatcmd_mcp::{AuthProvider, HttpSecurity, McpServer, OriginPolicy};
 use chatcmd_runtime::{
@@ -164,10 +165,11 @@ async fn run_server(ready: Option<std::sync::mpsc::Sender<()>>) -> Result<()> {
             .context("start filesystem journal persistence")?,
     );
 
-    let root = std::env::current_dir()
-        .context("resolve current workspace")?
-        .canonicalize()
-        .context("canonicalize workspace")?;
+    let roots = resolve_workspace_roots()?;
+    let root = roots
+        .first()
+        .cloned()
+        .context("at least one workspace root is required")?;
     let policy = ExecutionPolicy {
         default: PolicyDecision::Allow,
         per_agent_tool: BTreeMap::new(),
@@ -177,7 +179,7 @@ async fn run_server(ready: Option<std::sync::mpsc::Sender<()>>) -> Result<()> {
     let (event_tx, _) = broadcast::channel(512);
     let event_sink: Arc<dyn EventSink> = Arc::new(BroadcastEvents(event_tx.clone()));
     let config = RuntimeConfig {
-        roots: vec![root.clone()],
+        roots: roots.clone(),
         user_home: user_home(),
         repository_root: Some(root.clone()),
         ..RuntimeConfig::default()
@@ -291,7 +293,19 @@ async fn run_server(ready: Option<std::sync::mpsc::Sender<()>>) -> Result<()> {
             "/ping",
             get(|| async { axum::Json(json!({ "pong": true, "service": "ChatCMD" })) }),
         )
-        .route("/ws", get(ws_handler));
+        .route("/ws", get(ws_handler))
+        .route(
+            "/.well-known/oauth-protected-resource/mcp",
+            get(|| async { StatusCode::NOT_FOUND }),
+        )
+        .route(
+            "/.well-known/oauth-protected-resource/mcp/{token}",
+            get(|| async { StatusCode::NOT_FOUND }),
+        )
+        .route(
+            "/.well-known/oauth-protected-resource",
+            get(|| async { StatusCode::NOT_FOUND }),
+        );
     #[cfg(feature = "embedded-web")]
     let management = management.fallback(embedded_web::serve).with_state(state);
     #[cfg(not(feature = "embedded-web"))]
@@ -437,6 +451,66 @@ fn user_home() -> Option<PathBuf> {
     std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from)
 }
 
+fn resolve_workspace_root() -> Result<PathBuf> {
+    #[cfg(all(not(debug_assertions), feature = "embedded-web"))]
+    if let Some(home) = user_home() {
+        let workspace = if cfg!(target_os = "macos") {
+            home.join("Library/Application Support/ChatCmdClient/workspace")
+        } else if cfg!(target_os = "windows") {
+            home.join("AppData/Roaming/ChatCmdClient/workspace")
+        } else {
+            home.join(".local/share/ChatCmdClient/workspace")
+        };
+
+        std::fs::create_dir_all(&workspace).context("create packaged workspace")?;
+
+        return workspace
+            .canonicalize()
+            .context("canonicalize packaged workspace");
+    }
+
+    std::env::current_dir()
+        .context("resolve current workspace")?
+        .canonicalize()
+        .context("canonicalize workspace")
+}
+
+fn resolve_workspace_roots() -> Result<Vec<PathBuf>> {
+    if let Some(raw) = std::env::var_os("CHATCMD_WORKSPACE_ROOTS") {
+        let mut roots = Vec::new();
+
+        for entry in raw.to_string_lossy().split(';') {
+            let entry = entry.trim();
+
+            if entry.is_empty() {
+                continue;
+            }
+
+            let path = PathBuf::from(entry);
+
+            if !path.is_dir() {
+                bail!(
+                    "configured workspace root does not exist or is not a directory: {}",
+                    path.display()
+                );
+            }
+
+            let canonical = path
+                .canonicalize()
+                .with_context(|| format!("canonicalize workspace root {}", path.display()))?;
+
+            if !roots.contains(&canonical) {
+                roots.push(canonical);
+            }
+        }
+
+        if !roots.is_empty() {
+            return Ok(roots);
+        }
+    }
+
+    Ok(vec![resolve_workspace_root()?])
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,7 +547,9 @@ mod tests {
         .filter_map(|line| {
             let rest = line.strip_prefix("            \"")?;
             let (name, tail) = rest.split_once('"')?;
-            tail.trim_start().starts_with("=>").then(|| name.to_owned())
+            tail.trim_start()
+                .starts_with("=>")
+                .then(|| chatcmd_mcp::public_tool_name(name).to_owned())
         })
         .collect::<Vec<_>>();
         dispatched.sort_unstable();

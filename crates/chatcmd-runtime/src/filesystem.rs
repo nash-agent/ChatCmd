@@ -3,6 +3,7 @@ use crate::{
     PolicyEngine, RuntimeError, RuntimeResult, TextReadBudget, TextReadRange, TextReadRequestV2,
     TextReadResult, TextReadResultV2,
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use std::{
     ffi::OsString,
     fs,
@@ -420,6 +421,43 @@ impl WorkspaceService {
                 })
             })
             .collect()
+    }
+
+    pub async fn read_image(&self, path: &Path) -> RuntimeResult<serde_json::Value> {
+        const MAX_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
+        let resolved = self.existing(path)?;
+        resolved.revalidate()?;
+        if resolved.kind != EntryKind::File {
+            return Err(RuntimeError::new(
+                "invalid_image_path",
+                "image path must reference a regular file",
+            ));
+        }
+        if resolved.identity.len > MAX_IMAGE_BYTES {
+            return Err(RuntimeError::new(
+                "image_too_large",
+                "fs_read_image is limited to 16 MiB",
+            ));
+        }
+        let bytes = tokio::fs::read(&resolved).await.map_err(io_error)?;
+        resolved.revalidate()?;
+        let mime_type = if bytes.starts_with(&[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) {
+            "image/png"
+        } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+            "image/jpeg"
+        } else {
+            return Err(RuntimeError::new(
+                "unsupported_image_type",
+                "fs_read_image supports PNG and JPEG only",
+            ));
+        };
+        let size_bytes = bytes.len();
+        Ok(serde_json::json!({
+            "path": resolved.canonical_path.to_string_lossy().to_string(),
+            "mimeType": mime_type,
+            "sizeBytes": size_bytes,
+            "dataBase64": BASE64_STANDARD.encode(bytes),
+        }))
     }
 
     pub async fn read_text(
@@ -866,7 +904,7 @@ mod path_safety_tests {
     #[test]
     fn unicode_path_is_authorized_without_lossy_normalization() {
         let workspace = TempDir::new().expect("workspace");
-        let file = workspace.path().join("dữ-liệu-猫.txt");
+        let file = workspace.path().join("unicode-猫.txt");
         fs::write(&file, "unicode").expect("unicode file");
 
         assert_eq!(

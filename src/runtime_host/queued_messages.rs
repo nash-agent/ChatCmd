@@ -60,7 +60,7 @@ impl RuntimeHost {
         object.insert(
             "immediateMessageInstruction".to_owned(),
             Value::String(
-                "URGENT USER UPDATE: These messages were sent while this exact task was already running. Before continuing the previous work, immediately call agent_progress once to acknowledge the new request in Vietnamese, for example: Đã nhận được yêu cầu mới là: \"...\" và sẽ xử lý nó trước. Then handle every immediateMessages item in the listed priority order before resuming prior work. Do not defer or ignore them, and do not apply them to another task."
+                "URGENT USER UPDATE: These messages were sent while this exact task was already running. Before continuing the previous work, immediately call agent_progress once to acknowledge the new request in English, for example: Received the new request: \"...\" and will handle it first. Then handle every immediateMessages item in the listed priority order before resuming prior work. Do not defer or ignore them, and do not apply them to another task."
                     .to_owned(),
             ),
         );

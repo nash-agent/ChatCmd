@@ -103,8 +103,8 @@ public static class ModernFolderPicker {
             FileOpenOptions options;
             dialog.GetOptions(out options);
             dialog.SetOptions(options | FileOpenOptions.PickFolders | FileOpenOptions.ForceFileSystem | FileOpenOptions.PathMustExist | FileOpenOptions.DontAddToRecent);
-            dialog.SetTitle("Chọn thư mục dự án");
-            dialog.SetOkButtonLabel("Chọn thư mục");
+            dialog.SetTitle("Choose project folder");
+            dialog.SetOkButtonLabel("Choose folder");
 
             int result = dialog.Show(owner);
             if (result == Cancelled) return null;
@@ -175,7 +175,7 @@ try {
         let output = Command::new("osascript")
             .args([
                 "-e",
-                "POSIX path of (choose folder with prompt \"Chọn thư mục dự án\")",
+                "POSIX path of (choose folder with prompt \"Choose project folder\")",
             ])
             .output()
             .map_err(|error| folder_problem(error.to_string()))?;
@@ -191,7 +191,7 @@ try {
             .args([
                 "--file-selection",
                 "--directory",
-                "--title=Chọn thư mục dự án",
+                "--title=Choose project folder",
             ])
             .output()
             .map_err(|error| folder_problem(error.to_string()))?;

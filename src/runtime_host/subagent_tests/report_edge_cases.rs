@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn aggregate_report_text_is_bounded_and_omitted_pages_are_retrievable() {
     let (host, parent, _directory) = parent_fixture().await;
-    let text = "Báo cáo 🦀\n".repeat(1600);
+    let text = "Report 🦀\n".repeat(1600);
     let mut ids = Vec::new();
     for index in 0..7 {
         let registration = host

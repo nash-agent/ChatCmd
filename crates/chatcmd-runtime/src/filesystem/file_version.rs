@@ -1,6 +1,6 @@
 use super::*;
 use crate::{FsPermissions, FsStatBudget, FsStatRequest, FsStatResult, VersionStrength};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

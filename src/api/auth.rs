@@ -198,6 +198,9 @@ fn extension_route_allowed(method: &Method, path: &str) -> bool {
         (&Method::POST, ["api", "local", "subagents", _, "fallback", action]) => {
             matches!(*action, "started" | "result" | "heartbeat")
         }
+        (&Method::POST, ["api", "local", "chatgpt", "images", _, action]) => {
+            matches!(*action, "started" | "result")
+        }
         (&Method::POST, ["api", "local", "chatgpt", "bridge", _, action]) => {
             matches!(
                 *action,

@@ -51,7 +51,7 @@ test('destination operation hash must match exactly, not a longer job id prefix'
 test('multiple tagged destinations fail closed before any probe or send', async (t) => {
   const env = await destinationWorker(t);
   const value = env.serverJob();
-  await assert.rejects(env.api.locateCompactDestination(value, env.record(), [tagged(value, 90), tagged(value, 91)]), /nhiều tab/);
+  await assert.rejects(env.api.locateCompactDestination(value, env.record(), [tagged(value, 90), tagged(value, 91)]), /Multiple tabs/);
   assert.equal(env.shared.calls.length, 0);
 });
 
@@ -60,7 +60,7 @@ test('multiple canonical conversations with the resume marker never select an ar
   env.shared.route = async () => ({ ok: true, markerFound: true });
   await assert.rejects(env.api.locateCompactDestination(env.serverJob(), env.record(), [
     { id: 90, url: 'https://chatgpt.com/c/copy-one' }, { id: 91, url: 'https://chatgpt.com/c/copy-two' },
-  ]), /Hai cuộc trò chuyện/);
+  ]), /Two conversations/);
   assert.equal(env.sends().length, 0);
 });
 
@@ -73,7 +73,7 @@ test('closed destination pauses without creating another chat across worker rest
   assert.equal(env.sends().length, 0);
   assert.equal(env.serverJob().phase, 'opening_new_chat');
   assert.equal(env.serverJob().handoffText, BODY);
-  assert.ok(env.serverJob().detail.includes('mở lại'));
+  assert.ok(env.serverJob().detail.includes('reopen'));
 });
 
 test('first destination opening waits for closed source; durable handoff remains intact', async (t) => {
@@ -83,7 +83,7 @@ test('first destination opening waits for closed source; durable handoff remains
   assert.equal(env.shared.creates.length, 0);
   assert.equal(env.sends().length, 0);
   assert.equal(env.serverJob().handoffText, BODY);
-  assert.ok(env.serverJob().detail.includes('cũ'));
+  assert.ok(env.serverJob().detail.includes('previous'));
 });
 
 test('destination opening intent is persisted before create and survives an unknown create result', async (t) => {
@@ -121,7 +121,7 @@ test('lost destination pre-dispatch checkpoint response retries safely with at m
   const env = await destinationWorker(t);
   let fault = true;
   env.shared.afterCheckpoint = async (patch) => {
-    if (fault && !patch.phase && patch.detail?.includes('Đang chuyển')) {
+    if (fault && !patch.phase && patch.detail?.includes('Transferring')) {
       fault = false;
       throw new Error('Pre-dispatch checkpoint response lost');
     }

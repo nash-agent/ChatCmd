@@ -11,7 +11,7 @@ describe('sound notification events', () => {
   });
 
   it('plays completion semantics only when completed status contains a final response', () => {
-    expect(isFinalResponseEvent(event('status', { status: 'completed', content: 'Phản hồi cuối' }))).toBe(true);
+    expect(isFinalResponseEvent(event('status', { status: 'completed', content: 'Final response' }))).toBe(true);
     expect(isFinalResponseEvent(event('status', { status: 'completed' }))).toBe(false);
     expect(isFinalResponseEvent(event('status', { status: 'running', content: 'progress' }))).toBe(false);
   });

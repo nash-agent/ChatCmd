@@ -82,7 +82,7 @@ async fn codex_rules_are_hidden_discovered_in_deterministic_order() {
 #[tokio::test]
 async fn utf8_truncation_has_continuation_and_valid_boundary() {
     let fixture = TempDir::new().expect("fixture");
-    write(&fixture.path().join("AGENTS.md"), "xin chào thế giới");
+    write(&fixture.path().join("AGENTS.md"), "hello 世界");
     let service = ProjectContextService::with_budgets(32, 8, 256, Duration::from_secs(5));
 
     let bundle = service.load(fixture.path(), &[]).await.expect("context");
@@ -320,7 +320,16 @@ async fn root_manifest_symlink_is_skipped_without_reading_or_hashing_external_co
     let outside = TempDir::new().expect("outside fixture");
     let marker = outside.path().join("Cargo.toml");
     write(&marker, "external-secret-one");
-    link_file(&marker, &fixture.path().join("Cargo.toml")).expect("link root manifest");
+    if let Err(error) = link_file(&marker, &fixture.path().join("Cargo.toml")) {
+        #[cfg(windows)]
+        if error.kind() == std::io::ErrorKind::PermissionDenied
+            || error.raw_os_error() == Some(1314)
+        {
+            // Windows requires Developer Mode or SeCreateSymbolicLinkPrivilege for this fixture.
+            return;
+        }
+        panic!("link root manifest: {error}");
+    }
     let service = ProjectContextService::default();
 
     let first = service.load(fixture.path(), &[]).await.expect("first scan");

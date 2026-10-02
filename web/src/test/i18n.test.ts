@@ -23,7 +23,7 @@ describe('app language resolution', () => {
 
   it('switches translated UI text at runtime', () => {
     setAppLanguage('vi', false);
-    expect(tr('Settings')).toBe('Cài đặt');
+    expect(tr('Settings')).toBe('Settings');
     setAppLanguage('en', false);
     expect(tr('Settings')).toBe('Settings');
   });

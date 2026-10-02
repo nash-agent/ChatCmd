@@ -58,6 +58,56 @@ impl McpServer {
         }
     }
 
+    async fn invoke_image(
+        &self,
+        arguments: ToolArguments,
+        request_context: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if let Some(mismatch) = catalog_mismatch(&arguments) {
+            return mismatch;
+        }
+        let Some(authenticated) = request_identity::authenticated_context(&request_context)
+            .or_else(|| {
+                request_identity::local_transport_context(&request_context, &arguments.agent_id)
+            })
+        else {
+            return missing_authenticated_context();
+        };
+        let (context, value) = self.prepare_call("fs_read_image", arguments, authenticated);
+        match self.runtime.call("fs_read_image", context, value).await {
+            Ok(mut value) => {
+                let data = value
+                    .get("dataBase64")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned);
+                let mime_type = value
+                    .get("mimeType")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned);
+                match (data, mime_type) {
+                    (Some(data), Some(mime_type)) => {
+                        if let Some(object) = value.as_object_mut() {
+                            object.remove("dataBase64");
+                        }
+                        let mut result =
+                            CallToolResult::success(vec![ContentBlock::image(data, mime_type)]);
+                        result.structured_content = Some(value);
+                        result
+                    }
+                    _ => CallToolResult::structured_error(serde_json::json!({
+                        "error": {
+                            "code": "invalid_image_result",
+                            "message": "runtime image result did not include dataBase64 and mimeType",
+                            "retryable": false,
+                            "approvalRequired": false
+                        }
+                    })),
+                }
+            }
+            Err(error) => CallToolResult::structured_error(error_value(&error)),
+        }
+    }
+
     async fn invoke_subagent_start(
         &self,
         arguments: ToolArguments,

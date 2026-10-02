@@ -7,21 +7,17 @@ pub(super) fn is_plan_mode_request(content: &str) -> bool {
         .collect::<Vec<_>>()
         .join(" ");
     let negated = [
-        "không cần lên kế hoạch",
-        "không cần lập kế hoạch",
-        "không lên kế hoạch",
-        "không lập kế hoạch",
-        "đừng lên kế hoạch",
-        "đừng lập kế hoạch",
         "do not plan",
         "don't plan",
         "no plan needed",
+        "skip planning",
     ]
     .iter()
     .any(|phrase| normalized.contains(phrase));
     !negated
-        && (normalized.contains("lên kế hoạch")
-            || normalized.contains("lập kế hoạch")
+        && (normalized.contains("plan this")
+            || normalized.contains("make a plan")
+            || normalized.contains("create a plan")
             || normalized.split_whitespace().any(|word| word == "#plan"))
 }
 
@@ -29,23 +25,17 @@ pub(super) fn intent_hint(content: &str) -> Value {
     let normalized = intent_prose(content).to_lowercase();
     let workflow_kind = if is_plan_mode_request(content) {
         "plan"
-    } else if [
-        "chỉ review",
-        "chỉ đánh giá",
-        "review only",
-        "do not edit",
-        "đừng sửa",
-    ]
-    .iter()
-    .any(|phrase| normalized.contains(phrase))
+    } else if ["review only", "do not edit", "don't edit"]
+        .iter()
+        .any(|phrase| normalized.contains(phrase))
     {
         "review"
-    } else if ["debug", "sửa lỗi", "fix bug"]
+    } else if ["debug", "fix bug", "fix the bug"]
         .iter()
         .any(|phrase| normalized.contains(phrase))
     {
         "debug"
-    } else if ["commit", "tạo commit"]
+    } else if ["commit", "create commit"]
         .iter()
         .any(|phrase| normalized.contains(phrase))
     {
@@ -95,25 +85,27 @@ mod tests {
 
     #[test]
     fn planning_trigger_ignores_negation_quotes_and_code() {
-        assert!(is_plan_mode_request("Lên kế hoạch cho tôi mua quà"));
-        assert!(is_plan_mode_request("LẬP   KẾ HOẠCH\nwebsite bán hàng"));
-        assert!(is_plan_mode_request("Xây website giúp tôi #PLAN"));
-        assert!(!is_plan_mode_request("Cho tôi xem kế hoạch hiện tại"));
-        assert!(!is_plan_mode_request("Dùng planner để theo dõi công việc"));
-        assert!(!is_plan_mode_request("Không cần lên kế hoạch, sửa luôn"));
-        assert!(!is_plan_mode_request(
-            "Đừng lập kế hoạch; implement trực tiếp"
+        assert!(is_plan_mode_request("Plan this gift purchase"));
+        assert!(is_plan_mode_request(
+            "MAKE   A   PLAN\nfor the sales website"
         ));
-        assert!(!is_plan_mode_request("Log ghi `#plan` nhưng hãy sửa lỗi"));
+        assert!(is_plan_mode_request("Build the website for me #PLAN"));
+        assert!(!is_plan_mode_request("Show me the current roadmap"));
+        assert!(!is_plan_mode_request("Use the planner to track work"));
+        assert!(!is_plan_mode_request("No plan needed, edit it now"));
+        assert!(!is_plan_mode_request("Do not plan; implement directly"));
         assert!(!is_plan_mode_request(
-            "Ví dụ:\n```text\nlập kế hoạch\n```\nSửa code"
+            "The log contains `#plan` but fix the bug"
         ));
-        assert!(!is_plan_mode_request("Review chuỗi \"lên kế hoạch\""));
+        assert!(!is_plan_mode_request(
+            "Example:\n```text\nmake a plan\n```\nEdit the code"
+        ));
+        assert!(!is_plan_mode_request("Review the string \"plan this\""));
     }
 
     #[test]
     fn intent_hint_never_grants_execution_permission() {
-        let review = intent_hint("Chỉ review, đừng sửa");
+        let review = intent_hint("Review only, don't edit");
         assert_eq!(review["workflowKind"], "review");
         assert_eq!(review["authoritative"], false);
         assert_eq!(review["grantsExecutionPermission"], false);

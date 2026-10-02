@@ -96,11 +96,11 @@ mod tests {
             })
             .cloned()
             .collect::<Vec<_>>();
-        assert!(tools.iter().any(|name| name == "fs_stat"));
-        assert!(tools.iter().any(|name| name == "fs_read_text"));
-        assert!(tools.iter().any(|name| name == "fs_search"));
-        assert!(!tools.iter().any(|name| name == "fs_write_text"));
-        assert!(!tools.iter().any(|name| name == "git_status"));
+        assert!(tools.iter().any(|name| name == "workspace_stat"));
+        assert!(tools.iter().any(|name| name == "workspace_read_text"));
+        assert!(tools.iter().any(|name| name == "workspace_search"));
+        assert!(!tools.iter().any(|name| name == "workspace_write_text"));
+        assert!(!tools.iter().any(|name| name == "repository_status"));
     }
 
     #[test]
@@ -169,7 +169,7 @@ mod tests {
             .await
             .expect("list tools")
             .into_iter()
-            .find(|candidate| candidate.key == tool)
+            .find(|candidate| chatcmd_mcp::runtime_tool_name(&candidate.key) == tool)
             .unwrap_or_else(|| panic!("seeded tool {tool}"))
             .id;
         host.repository

@@ -237,7 +237,7 @@ async fn extension_fallback_stays_pending_and_parent_wait_remains_active() {
             .get("submittedContent")
             .and_then(Value::as_str)
             .is_some_and(|value| value
-                .starts_with("Sử dụng plugin @User message sync test để thực hiện yêu cầu sau:"))
+                .starts_with("Use plugin @User message sync test to perform the following request:"))
     );
 }
 

@@ -43,8 +43,8 @@ async fn bridge_started_keeps_concurrent_winner_and_removes_losing_candidate() {
         .bind("bridge-started-race-turn")
         .bind(agent.id.as_str())
         .bind("Auto")
-        .bind("Kiểm tra race")
-        .bind("Sử dụng plugin @worker để kiểm tra race")
+        .bind("Check race")
+        .bind("Use plugin @worker to check race")
         .bind(project_folder)
         .bind(now)
         .bind(now)
@@ -60,7 +60,7 @@ async fn bridge_started_keeps_concurrent_winner_and_removes_losing_candidate() {
             agent_id: agent.id.as_str(),
             device_id: bootstrap.device.id.as_str(),
             scope: "openai:browser-scope",
-            title: "Kiểm tra race",
+            title: "Check race",
             project_folder: Some(project_folder),
             model: "Auto",
             conversation_id: "browser-conversation-id",
@@ -120,7 +120,7 @@ async fn browser_completion_fixture(
         .agent;
     let request_id = "browser-completion-request".to_owned();
     let task_id = "task-browser-completion".to_owned();
-    let submitted = "Sử dụng plugin @worker để kiểm tra raw bubble".to_owned();
+    let submitted = "Use plugin @worker to check raw bubble".to_owned();
     let turn_id = "turn-browser-completion".to_owned();
     let now = super::now_ms();
     sqlx::query("INSERT INTO tasks(id,agent_id,device_id,title,source,allow_execute,status,generation,created_at_ms,updated_at_ms) VALUES(?,?,?,?, 'chatgpt_web',1,'running',1,?,?)")
@@ -129,7 +129,7 @@ async fn browser_completion_fixture(
         .expect("insert task");
     sqlx::query("INSERT INTO chatgpt_bridge_requests(id,task_id,turn_id,agent_id,model,user_content,submitted_content,status,conversation_id,conversation_url,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,'running',?,?,?,?)")
         .bind(&request_id).bind(&task_id).bind(&turn_id).bind(agent.id.as_str()).bind("Auto")
-        .bind("Kiểm tra raw bubble").bind(&submitted).bind("conversation-browser-completion")
+        .bind("Check raw bubble").bind(&submitted).bind("conversation-browser-completion")
         .bind("https://chatgpt.com/c/conversation-browser-completion").bind(now).bind(now)
         .execute(repository.pool()).await.expect("insert request");
     sqlx::query("INSERT INTO chatgpt_conversations(task_id,conversation_id,conversation_url,model,active_request_id,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?)")

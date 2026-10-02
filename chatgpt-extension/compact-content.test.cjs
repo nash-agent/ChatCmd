@@ -66,7 +66,7 @@ test('duplicate marked turns fail closed, while nested wrappers count as one tur
   env.answer(BODY + '\n' + env.protocol.marker('HANDOFF-END', value.id));
   assert.equal(env.settled(value).handoffText, BODY);
   env.user(env.protocol.handoffPrompt(value), 'second');
-  assert.throws(() => env.probe(value), /nhiều tin nhắn|duplicate/i);
+  assert.throws(() => env.probe(value), /multiple messages|duplicate/i);
 });
 
 test('a later user turn supersedes the owned handoff and cannot contaminate capture', (t) => {

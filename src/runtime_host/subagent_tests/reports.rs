@@ -91,7 +91,7 @@ async fn event(
 async fn wait_returns_exact_public_report_and_quality_after_real_child_completion() {
     let (host, parent, registration, id, dir) = fallback_fixture().await;
     let child = begin_child(&host, &parent, &registration).await;
-    let text = "src/a.rs: chịu trách nhiệm đọc dữ liệu; symbols: read_a.\n\nsrc/b.rs: kiểm tra đường dẫn; symbols: validate_b.\nKhông sửa file. 🦀";
+    let text = "src/a.rs: responsible for reading data; symbols: read_a.\n\nsrc/b.rs: validates paths; symbols: validate_b.\nDo not modify files. 🦀";
     finish(&host, &child, text, "completed").await;
     let result = wait(&host, &parent, json!({"timeoutMs":250})).await;
     let report = &run(&result, &id)["report"];
@@ -228,7 +228,7 @@ async fn wait_returns_grandchild_report_to_root_without_duplicate_or_cross_turn_
 async fn unicode_report_pages_round_trip_and_stale_or_invalid_cursors_are_rejected() {
     let (host, parent, registration, id, _dir) = fallback_fixture().await;
     let child = begin_child(&host, &parent, &registration).await;
-    let text = "Dữ liệu 🦀 e\u{301}\r\n".repeat(2500);
+    let text = "Data 🦀 e\u{301}\r\n".repeat(2500);
     finish(&host, &child, &text, "completed").await;
     let mut result = wait(&host, &parent, json!({"timeoutMs":250})).await;
     let mut collected = String::new();

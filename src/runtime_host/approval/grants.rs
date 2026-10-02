@@ -28,7 +28,10 @@ impl RuntimeHost {
             let tools: Vec<String> =
                 serde_json::from_str(&row.get::<String, _>("allowed_tools_json"))
                     .unwrap_or_default();
-            if !tools.iter().any(|value| value == tool) {
+            if !tools
+                .iter()
+                .any(|value| chatcmd_mcp::runtime_tool_name(value) == tool)
+            {
                 continue;
             }
             let option_constraints = row.get::<String, _>("option_constraints_json");
@@ -164,10 +167,11 @@ impl RuntimeHost {
             let parent_tools: Vec<String> =
                 serde_json::from_str(&row.get::<String, _>("allowed_tools_json"))
                     .unwrap_or_default();
-            if requested_tools
-                .iter()
-                .any(|tool| !parent_tools.iter().any(|parent| parent == tool))
-            {
+            if requested_tools.iter().any(|tool| {
+                !parent_tools.iter().any(|parent| {
+                    chatcmd_mcp::runtime_tool_name(parent) == chatcmd_mcp::runtime_tool_name(tool)
+                })
+            }) {
                 continue;
             }
             let parent_scopes: Vec<GrantPathScope> =

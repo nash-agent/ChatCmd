@@ -35,7 +35,9 @@ impl RuntimeHost {
             .map_err(storage_error)?;
         let tools = self.repository.list_tools().await.map_err(storage_error)?;
         if tools.iter().any(|candidate| {
-            candidate.key == tool && candidate.enabled && allowed.contains(&candidate.id)
+            chatcmd_mcp::runtime_tool_name(&candidate.key) == tool
+                && candidate.enabled
+                && allowed.contains(&candidate.id)
         }) {
             Ok(())
         } else {

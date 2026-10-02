@@ -45,8 +45,8 @@ pub(crate) fn run(management_url: String, server_ready: Receiver<()>) -> Result<
         })
         .context("start browser-open watcher")?;
 
-    let open_item = MenuItem::new("Vào trang quản lý", true, None);
-    let quit_item = MenuItem::new("Thoát", true, None);
+    let open_item = MenuItem::new("Open management page", true, None);
+    let quit_item = MenuItem::new("Quit", true, None);
     let mut app = TrayApplication {
         tray: None,
         management_url,

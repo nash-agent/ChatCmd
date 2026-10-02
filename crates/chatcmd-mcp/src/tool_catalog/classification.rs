@@ -13,11 +13,14 @@ fn operation_class(name: &str) -> ToolOperationClass {
         | "task_artifact_list"
         | "blob_status" => ToolOperationClass::MetadataRead,
         "fs_list" | "fs_list_v2" | "fs_stat" | "fs_batch_stat" | "fs_read_text"
-        | "fs_read_text_v2" | "fs_batch_read" | "fs_find" | "fs_search" | "task_artifact_read"
-        | "skill_read" | "skills_list" | "project_context" => ToolOperationClass::ContentRead,
+        | "fs_read_image" | "fs_read_text_v2" | "fs_batch_read" | "fs_find" | "fs_search"
+        | "task_artifact_read" | "skill_read" | "skills_list" | "project_context" => {
+            ToolOperationClass::ContentRead
+        }
         "fs_create_directory"
         | "fs_write_text"
         | "fs_write_raw"
+        | "fs_write_chatgpt_image"
         | "fs_replace_text"
         | "fs_apply_edits"
         | "fs_copy"
@@ -70,14 +73,15 @@ fn risk_class(name: &str) -> ToolRiskClass {
         | "task_list"
         | "task_artifact_list"
         | "blob_status" => ToolRiskClass::MetadataRead,
-        "fs_read_text" | "fs_read_text_v2" | "fs_batch_read" | "task_artifact_read"
-        | "skill_read" | "shell_read" => ToolRiskClass::ContentRead,
+        "fs_read_image" | "fs_read_text" | "fs_read_text_v2" | "fs_batch_read"
+        | "task_artifact_read" | "skill_read" | "shell_read" => ToolRiskClass::ContentRead,
         "fs_find" | "fs_search" | "skills_list" | "project_context" => ToolRiskClass::ComputeRead,
         "fs_create_directory" | "blob_begin" | "blob_write_chunk" | "blob_seal" => {
             ToolRiskClass::Create
         }
         "fs_write_text"
         | "fs_write_raw"
+        | "fs_write_chatgpt_image"
         | "fs_replace_text"
         | "fs_apply_edits"
         | "workspace_index_rebuild"
@@ -123,6 +127,7 @@ fn path_fields(name: &str) -> Vec<PathFieldRole> {
 }
 
 fn result_schema(name: &str) -> Value {
+    let name = super::runtime_tool_name(name);
     let schema = match name {
         "fs_list_v2" => serde_json::to_value(schemars::schema_for!(
             chatcmd_runtime::ToolResultEnvelope<chatcmd_runtime::FsListPageData>

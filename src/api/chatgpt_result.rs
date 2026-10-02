@@ -169,9 +169,9 @@ pub(super) async fn bridge_result(
         } else if !error.is_empty() {
             error
         } else if input.status == "stopped" {
-            "Đã dừng phản hồi ChatGPT."
+            "ChatGPT response stopped."
         } else {
-            "ChatGPT bridge không trả về nội dung."
+            "The ChatGPT bridge returned no content."
         };
         append_user_message(
             &state,

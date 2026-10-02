@@ -17,11 +17,11 @@ async function chatGptTabStatus(conversationUrl, sourceTabId) {
       await logExtension(
         'warn',
         'ready-check',
-        `Tab ${tab.id} chưa ready: composerReady=${response?.composerReady === true}, generating=${response?.generating === true}, ready=${response?.ready === true}.`,
+        `Tab ${tab.id} is not ready: composerReady=${response?.composerReady === true}, generating=${response?.generating === true}, ready=${response?.ready === true}.`,
       );
     }
   } catch (error) {
-    await logExtension('warn', 'ready-check', `Không đọc được trạng thái ready của tab ${tab.id}: ${errorMessage(error)}`);
+    await logExtension('warn', 'ready-check', `Could not read ready state for tab ${tab.id}: ${errorMessage(error)}`);
     ready = false;
   }
   return {
@@ -34,7 +34,7 @@ async function chatGptTabStatus(conversationUrl, sourceTabId) {
 }
 
 async function prepareNewConversationTab(sourceTabId, newConversationUrl) {
-  if (!sourceTabId) throw new Error('Không xác định được tab ChatCMD hiện tại.');
+  if (!sourceTabId) throw new Error('Could not determine the current ChatCMD tab.');
   const target = normalizeNewConversationUrl(newConversationUrl);
   let tab = await preparedTabForSource(sourceTabId, target);
   if (tab?.id) {
@@ -44,14 +44,14 @@ async function prepareNewConversationTab(sourceTabId, newConversationUrl) {
     if (tab?.id) await chrome.tabs.update(tab.id, { active: true });
     else tab = await chrome.tabs.create({ url: target, active: true });
   }
-  if (!tab?.id) throw new Error('Không thể mở tab ChatGPT để chọn model.');
+  if (!tab?.id) throw new Error('Could not open a ChatGPT tab to select a model.');
   if (tab.windowId) await chrome.windows.update(tab.windowId, { focused: true });
   await chrome.storage.session.set({
     [`${PREPARED_TAB_PREFIX}${sourceTabId}`]: { tabId: tab.id, target },
     [`${RETURN_TAB_PREFIX}${tab.id}`]: { sourceTabId },
   });
   void sendToChatGpt(tab.id, { type: 'chatcmd-return-binding', enabled: true }, { quiet: true }).catch(() => undefined);
-  await logExtension('info', 'background', `Đã chuẩn bị tab ChatGPT ${tab.id} cho tab ChatCMD ${sourceTabId}.`);
+  await logExtension('info', 'background', `Prepared ChatGPT tab ${tab.id} for ChatCMD tab ${sourceTabId}.`);
   return tab;
 }
 
@@ -77,7 +77,7 @@ async function acquireNewConversationTab(sourceTabId, newConversationUrl) {
     tab = await findAvailableNewConversationTab(target);
     if (!tab?.id) tab = await chrome.tabs.create({ url: target, active: true });
   }
-  if (!tab?.id) throw new Error('Không thể tự mở tab ChatGPT mới. Hãy kiểm tra quyền của extension rồi thử lại.');
+  if (!tab?.id) throw new Error('Could not open a new ChatGPT tab automatically. Check extension permissions and try again.');
   await waitForTab(tab.id);
   await waitForChatGptReady(tab.id);
   return tab;
@@ -91,7 +91,7 @@ async function openConversationTab(conversationUrl, sourceTabId) {
     return existing;
   }
   const tab = await chrome.tabs.create({ url: target, active: false });
-  if (!tab?.id) throw new Error('Không thể mở tab ChatGPT của cuộc trò chuyện này.');
+  if (!tab?.id) throw new Error('Could not open the ChatGPT tab for this conversation.');
   const conversationId = conversationIdFromUrl(target);
   if (conversationId) await bindConversationTab(conversationId, tab.id);
   await waitForTab(tab.id);
@@ -102,7 +102,7 @@ async function openConversationTab(conversationUrl, sourceTabId) {
 async function focusConversationTab(conversationUrl, sourceTabId) {
   const target = await conversationTarget(conversationUrl);
   const tab = await findConversationTab(target);
-  if (!tab?.id) throw new Error('Tab ChatGPT của cuộc trò chuyện này không còn mở.');
+  if (!tab?.id) throw new Error('The ChatGPT tab for this conversation is no longer open.');
   await bindReturnSource(tab.id, sourceTabId);
   await chrome.tabs.update(tab.id, { active: true });
   if (tab.windowId) await chrome.windows.update(tab.windowId, { focused: true });
@@ -111,13 +111,13 @@ async function focusConversationTab(conversationUrl, sourceTabId) {
 async function closeConversationTab(conversationUrl) {
   const target = await conversationTarget(conversationUrl);
   const tab = await findConversationTab(target);
-  if (!tab?.id) throw new Error('Tab ChatGPT của cuộc trò chuyện này không còn mở.');
+  if (!tab?.id) throw new Error('The ChatGPT tab for this conversation is no longer open.');
   await chrome.tabs.remove(tab.id);
 }
 
 async function acquireConversationTab(target) {
   const tab = await findConversationTab(target);
-  if (!tab?.id) throw new Error('Tab ChatGPT của cuộc trò chuyện này không còn mở. Hãy mở lại link cuộc trò chuyện rồi thử lại.');
+  if (!tab?.id) throw new Error('The ChatGPT tab for this conversation is no longer open. Reopen the conversation link and try again.');
   await waitForTab(tab.id);
   return tab;
 }
@@ -127,7 +127,7 @@ async function findAvailableNewConversationTab(target = CHATGPT_HOME) {
   const stored = await chrome.storage.session.get(null);
   const reservedTabIds = new Set(
     Object.entries(stored)
-      .filter(([key]) => key.startsWith(CONVERSATION_PREFIX) || key.startsWith(PREPARED_TAB_PREFIX) || key.startsWith(SUBAGENT_PREFIX))
+      .filter(([key]) => key.startsWith(CONVERSATION_PREFIX) || key.startsWith(PREPARED_TAB_PREFIX) || key.startsWith(SUBAGENT_PREFIX) || key.startsWith('chatcmd-image-job:'))
       .map(([, value]) => value?.tabId)
       .filter(Boolean),
   );
@@ -172,13 +172,13 @@ async function bindReturnSource(chatGptTabId, sourceTabId) {
 }
 
 async function focusReturnSource(chatGptTabId) {
-  if (!chatGptTabId) throw new Error('Không xác định được tab ChatGPT hiện tại.');
+  if (!chatGptTabId) throw new Error('Could not determine the current ChatGPT tab.');
   const key = `${RETURN_TAB_PREFIX}${chatGptTabId}`;
   const stored = await chrome.storage.session.get(key);
   const sourceTabId = stored[key]?.sourceTabId;
-  if (!sourceTabId) throw new Error('Không tìm thấy tab ChatCMD đã mở tab ChatGPT này.');
+  if (!sourceTabId) throw new Error('Could not find the ChatCMD tab that opened this ChatGPT tab.');
   const source = await safeTab(sourceTabId);
-  if (!source?.id) throw new Error('Tab ChatCMD nguồn đã bị đóng.');
+  if (!source?.id) throw new Error('The source ChatCMD tab has been closed.');
   await chrome.tabs.update(source.id, { active: true });
   if (source.windowId) await chrome.windows.update(source.windowId, { focused: true });
 }

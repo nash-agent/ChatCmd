@@ -8,7 +8,7 @@ describe('tool result envelope rendering', () => {
     ]);
 
     expect(output).toContain('📁 D:/repo/src');
-    expect(output).not.toContain('Còn dữ liệu');
+    expect(output).not.toContain('More data');
   });
 
   it('surfaces v2 directory metadata, continuation, truncation, and content reference metadata', () => {
@@ -25,11 +25,11 @@ describe('tool result envelope rendering', () => {
     });
 
     expect(output).toContain('📄 D:/repo/a.rs');
-    expect(output).toContain('Thứ tự: Filesystem');
-    expect(output).toContain('Phiên bản thư mục: sha256:directory-version');
-    expect(output).toContain('Còn dữ liệu ở trang tiếp theo.');
-    expect(output).toContain('Kết quả bị cắt: Metadata Budget');
-    expect(output).toContain('Nội dung đầy đủ: artifact-1');
+    expect(output).toContain('Order: Filesystem');
+    expect(output).toContain('Directory version: sha256:directory-version');
+    expect(output).toContain('More data is available on the next page.');
+    expect(output).toContain('Results were truncated: Metadata Budget');
+    expect(output).toContain('Full content: artifact-1');
     expect(output).not.toContain('opaque-secret-cursor');
   });
 
@@ -41,9 +41,9 @@ describe('tool result envelope rendering', () => {
       stdout: 'PASS text is not authoritative', stderr: 'failure details',
     });
 
-    expect(output).toContain('Lệnh: cargo');
+    expect(output).toContain('Command: cargo');
     expect(output).toContain('Exit code: 7');
-    expect(output).toContain('Thư mục: D:/repo');
+    expect(output).toContain('Directory: D:/repo');
     expect(output).not.toContain('sha256:test');
   });
 });

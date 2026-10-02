@@ -157,4 +157,8 @@ async function run() {
 run().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => {
   for (const page of pages.values()) page.close();
   for (const timer of timers) { clearInterval(timer); clearTimeout(timer); }
+  const exitCode = process.exitCode || 0;
+  // Node's built-in fetch may keep pooled HTTP handles alive after the assertions finish.
+  // Give stdout/stderr one turn to flush, then terminate this test-only harness explicitly.
+  setTimeout(() => process.exit(exitCode), 0);
 });

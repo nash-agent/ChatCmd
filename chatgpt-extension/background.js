@@ -9,11 +9,15 @@ const MAX_LOGS = 200;
 const CHATGPT_HOME = 'https://chatgpt.com/';
 
 importScripts('background-io.js', 'background-tabs.js', 'approval-bridge.js', 'background-recovery.js', 'background-capture.js', 'background-clock.js', 'background-subagent-heartbeat.js', 'compact-protocol.js', 'background-compact-destination.js', 'background-compact.js');
+importScripts('background-visual.js');
+importScripts('background-image.js');
 setTimeout(() => void recoverContentScriptsOnStartup(), 200);
 void reconcileOpenChatGptIdentities();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message !== 'object') return false;
+  if (handleVisualBridgeMessage(message, sendResponse)) return true;
+  if (handleImageBridgeMessage(message, sender, sendResponse)) return true;
   if (message.type === 'chatcmd-approval-state-request') {
     void approvalBridgeState()
       .then((state) => sendResponse({ ok: true, ...state }))
@@ -52,13 +56,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const localBaseUrl = localOrigin(message.localBaseUrl);
         void startSubagentRequest({ ...message, localBaseUrl })
-          .then(() => sendResponse({ ok: true }))
-          .catch(async (error) => {
-            await reportSubagentFailure(message.subagentId, message.attempt, localBaseUrl, error);
-            sendResponse({ ok: false, error: errorMessage(error) });
-          });
+          .catch((error) => void reportSubagentFailure(message.subagentId, message.attempt, localBaseUrl, error)
+            .catch((reportError) => console.warn('Failed to report sub-agent startup error:', reportError)));
+        // Acknowledge receipt before opening and waiting for the ChatGPT tab.
+        // Startup failures are reported through fallback/result, fenced by attempt.
+        sendResponse({ ok: true });
       } catch (error) { sendResponse({ ok: false, error: errorMessage(error) }); }
-      return true;
+      return false;
     }
     if (message.action === 'subagent-close') {
       void closeSubagentRequest(message.subagentId)
@@ -145,7 +149,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 async function startRequest(message) {
-  if (!message.requestId || !message.submittedContent) throw new Error('Yêu cầu gửi ChatGPT không hợp lệ.');
+  if (!message.requestId || !message.submittedContent) throw new Error('Invalid ChatGPT send request.');
   const target = await conversationTarget(message.conversationUrl);
   const tab = message.conversationUrl
     ? await acquireConversationTab(target)
@@ -184,7 +188,7 @@ async function startSubagentRequest(message) {
 
 async function startSubagentRequestOnce(message) {
   if (!message.subagentId || !message.childTaskId || !message.submittedContent || !Number.isInteger(Number(message.attempt))) {
-    throw new Error('Yêu cầu fallback sub-agent không hợp lệ.');
+    throw new Error('Invalid sub-agent fallback request.');
   }
   const attempt = Number(message.attempt);
   const subagentKey = `${SUBAGENT_PREFIX}${message.subagentId}`;
@@ -197,7 +201,7 @@ async function startSubagentRequestOnce(message) {
 
   const target = normalizeNewConversationUrl(message.newConversationUrl);
   const tab = await chrome.tabs.create({ url: target, active: false });
-  if (!tab?.id) throw new Error('Không thể mở tab ChatGPT cho sub-agent.');
+  if (!tab?.id) throw new Error('Could not open a ChatGPT tab for the sub-agent.');
   const requestId = `subagent:${message.subagentId}:${attempt}`;
   await chrome.storage.session.set({
     [requestKey(requestId)]: {
@@ -217,7 +221,7 @@ async function startSubagentRequestOnce(message) {
     type: 'chatcmd-chatgpt-run',
     requestId,
     submittedContent: message.submittedContent,
-    model: message.model || 'Auto',
+    effort: message.effort || 'inherit',
   });
 }
 
@@ -260,13 +264,18 @@ async function closeSubagentRequestOnce(subagentId, expectedAttempt) {
 async function reportSubagentFailure(subagentId, attempt, localBaseUrl, error) {
   if (!subagentId || !attempt || !localBaseUrl) return;
   const key = `${SUBAGENT_PREFIX}${subagentId}`;
-  const stored = await chrome.storage.session.get(key);
-  const binding = stored[key];
-  const requestId = binding?.requestId || `subagent:${subagentId}:${Number(attempt)}`;
-  await releaseRequest(requestId);
-  await chrome.storage.session.remove(key);
-  if (binding?.tabId && await safeTab(binding.tabId)) {
-    try { await chrome.tabs.remove(binding.tabId); } catch { /* tab already closed */ }
+  try {
+    const stored = await chrome.storage.session.get(key);
+    const binding = stored[key];
+    if (binding && Number(binding.attempt) !== Number(attempt)) return;
+    const requestId = binding?.requestId || `subagent:${subagentId}:${Number(attempt)}`;
+    await releaseRequest(requestId);
+    await chrome.storage.session.remove(key);
+    if (binding?.tabId && await safeTab(binding.tabId)) {
+      try { await chrome.tabs.remove(binding.tabId); } catch { /* tab already closed */ }
+    }
+  } catch (cleanupError) {
+    console.warn('Failed to clean up sub-agent startup:', cleanupError);
   }
   try {
     await postJson(localBaseUrl, `/api/local/subagents/${encodeURIComponent(subagentId)}/fallback/result`, {
@@ -279,14 +288,14 @@ async function reportSubagentFailure(subagentId, attempt, localBaseUrl, error) {
 
 async function stopRequest(message) {
   localOrigin(message.localBaseUrl);
-  if (!message.requestId) throw new Error('Thiếu request ID cần dừng.');
+  if (!message.requestId) throw new Error('Missing request ID to stop.');
   const context = await requestContext(message.requestId);
-  if (!context?.tabId) throw new Error('Không tìm thấy tab ChatGPT đang xử lý yêu cầu này.');
+  if (!context?.tabId) throw new Error('Could not find the ChatGPT tab handling this request.');
   await chrome.tabs.sendMessage(context.tabId, { type: 'chatcmd-chatgpt-stop', requestId: message.requestId });
 }
 
 async function reconcileRequest(requestId) {
-  if (!requestId) throw new Error('Thiếu request ID cần đồng bộ.');
+  if (!requestId) throw new Error('Missing request ID to synchronize.');
   const context = await requestContext(requestId);
   if (!context?.tabId) return { reconciled: false, reason: 'request_context_missing' };
   const tab = await safeTab(context.tabId);
@@ -336,7 +345,7 @@ async function handleClosedTab(tabId) {
     if (key.startsWith(SUBAGENT_PREFIX)) removals.push(key);
     if (key.startsWith(REQUEST_PREFIX) && value.localBaseUrl) {
       const requestId = key.slice(REQUEST_PREFIX.length);
-      failures.push(reportFailure(requestId, value.localBaseUrl, new Error('Tab ChatGPT liên kết với cuộc trò chuyện đã bị đóng. Mở lại cuộc trò chuyện ChatGPT để tiếp tục.')));
+      failures.push(reportFailure(requestId, value.localBaseUrl, new Error('The ChatGPT tab linked to the conversation was closed. Reopen the ChatGPT conversation to continue.')));
     }
   }
   if (removals.length) await chrome.storage.session.remove([...new Set(removals)]);
@@ -376,7 +385,7 @@ async function migrateTabBindings(removedTabId, addedTabId) {
   if (removals.length) await chrome.storage.session.remove(removals);
   const tab = await safeTab(addedTabId);
   if (tab?.url) await refreshConversationAliases(addedTabId, tab.url);
-  await logExtension('info', 'background', `Chrome thay tab ${removedTabId} bằng ${addedTabId}; đã chuyển binding ChatCMD sang tab mới.`);
+  await logExtension('info', 'background', `Chrome replaced tab ${removedTabId} with ${addedTabId}; moved the ChatCMD binding to the new tab.`);
 }
 
 async function preferredConversationIdentity(tabId, conversationId, conversationUrl) {
@@ -397,7 +406,7 @@ async function reconcileOpenChatGptIdentities() {
       await syncRequestIdentityFromTab(tab.id, tab.url);
     }
   } catch (error) {
-    await logExtension('warn', 'background', `Không thể khôi phục ChatGPT conversation identity khi extension khởi động: ${errorMessage(error)}`);
+    await logExtension('warn', 'background', `Could not restore ChatGPT conversation identity when the extension started: ${errorMessage(error)}`);
   }
 }
 
@@ -421,9 +430,9 @@ async function syncRequestIdentityFromTab(tabId, tabUrl) {
           conversationUrl: tabUrl,
         });
       }
-      await logExtension('info', 'background', `Đã đồng bộ conversation ID ${liveId} trực tiếp từ tab ${tabId}.`);
+      await logExtension('info', 'background', `Synchronized conversation ID ${liveId} directly from tab ${tabId}.`);
     } catch (error) {
-      await logExtension('warn', 'background', `Chưa đồng bộ được conversation ID ${liveId} từ tab ${tabId}: ${errorMessage(error)}`);
+      await logExtension('warn', 'background', `Could not yet synchronize conversation ID ${liveId} from tab ${tabId}: ${errorMessage(error)}`);
     }
   }
 }
@@ -465,9 +474,9 @@ async function refreshConversationAliases(tabId, tabUrl) {
             conversationUrl: tabUrl,
           });
         }
-        await logExtension('info', 'background', `Đã nâng conversation ${boundId} thành ID thật ${liveId}.`);
+        await logExtension('info', 'background', `Upgraded conversation ${boundId} to real ID ${liveId}.`);
       } catch (error) {
-        await logExtension('warn', 'background', `Chưa đồng bộ được ChatGPT conversation ID thật ${liveId}: ${errorMessage(error)}`);
+        await logExtension('warn', 'background', `Could not yet synchronize real ChatGPT conversation ID ${liveId}: ${errorMessage(error)}`);
       }
     }
   }

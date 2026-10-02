@@ -414,7 +414,7 @@ impl RuntimeHost {
                     }),
                 );
                 let progress_message = format!(
-                    "Câu hỏi lập kế hoạch: {}\nTrả lời: {}",
+                    "Planning question: {}\nAnswer: {}",
                     view.question, answer.text
                 );
                 Ok(json!({

@@ -69,17 +69,17 @@ async fn reports_unicode_and_exit_status_without_interpreting_output() {
     let directory = TempDir::new().expect("temporary directory");
     let service = service(&directory, PolicyDecision::Allow);
     #[cfg(windows)]
-    let script = "[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Out.Write('xin chào ✓'); [Console]::Error.Write('cảnh báo'); exit 0";
+    let script = "[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Out.Write('hello 世界 ✓'); [Console]::Error.Write('warning 世界'); exit 0";
     #[cfg(not(windows))]
-    let script = "printf 'xin chào ✓'; printf 'cảnh báo' >&2; exit 0";
+    let script = "printf 'hello 世界 ✓'; printf 'warning 世界' >&2; exit 0";
     let result = service
         .run(&context("r1", "task", "agent"), request(&directory, script))
         .await
         .expect("command result");
     assert_eq!(result.terminal_state, CommandTerminalState::Exited);
     assert_eq!(result.exit_code, Some(0));
-    assert!(result.stdout.contains("xin chào"));
-    assert!(result.stderr.contains("cảnh báo"));
+    assert!(result.stdout.contains("hello 世界"));
+    assert!(result.stderr.contains("warning 世界"));
     assert_eq!(result.signal, None);
     assert!(result.finished_at_unix_ms >= result.started_at_unix_ms);
 

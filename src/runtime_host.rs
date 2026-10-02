@@ -15,6 +15,8 @@ mod git_support;
 #[cfg(test)]
 mod git_tests;
 mod identity;
+mod identity_scope;
+mod identity_support;
 mod inputs;
 mod persistence;
 mod plan_prompt;
@@ -37,6 +39,7 @@ mod user_message_path_tests;
 mod user_message_project_tests;
 #[cfg(test)]
 pub(crate) mod user_message_tests;
+mod virtual_workspace;
 
 use chatcmd_core::{LocalDevice, TaskId, TaskStore as _};
 use chatcmd_mcp::RuntimeApi;

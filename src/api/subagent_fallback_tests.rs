@@ -70,7 +70,7 @@ async fn pending_api_returns_queued_child_with_marker_and_parent_identity() {
     assert_eq!(item["parentTurnId"], PARENT_TURN_ID);
     assert_eq!(item["attempt"], 1);
     assert!(item["submittedContent"].as_str().is_some_and(|value| {
-        value.starts_with("Sử dụng plugin @User message sync test để thực hiện yêu cầu sau:")
+        value.starts_with("Use plugin @User message sync test to perform the following request:")
     }));
     assert!(
         item["submittedContent"]

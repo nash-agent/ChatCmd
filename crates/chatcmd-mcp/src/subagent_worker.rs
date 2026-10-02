@@ -438,17 +438,20 @@ async fn call_child_tool(
     mut arguments: Map<String, Value>,
 ) -> RuntimeResult<Value> {
     sanitize_arguments(&mut arguments);
+    let runtime_tool = crate::runtime_tool_name(tool);
     let context = child_context(
         parent_context,
         child_task_id,
         turn_id,
-        tool,
+        runtime_tool,
         format!(
             "subagent-tool-{subagent_id}-{round}-{index}-{}",
             Uuid::new_v4()
         ),
     );
-    runtime.call(tool, context, Value::Object(arguments)).await
+    runtime
+        .call(runtime_tool, context, Value::Object(arguments))
+        .await
 }
 
 async fn save_progress(

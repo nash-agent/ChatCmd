@@ -255,7 +255,9 @@ impl RuntimeHost {
             .map_err(storage_error)?
             .and_then(|task| task.project_folder)
             .map(PathBuf::from);
-        super::filesystem_dispatch::resolve_relative_paths(arguments.clone(), base.as_deref())
+        let virtual_workspace = self.virtual_workspace_view(context).await;
+        let arguments = virtual_workspace.resolve_alias_arguments(tool, arguments.clone())?;
+        super::filesystem_dispatch::resolve_relative_paths(arguments, base.as_deref())
     }
 
     async fn safe_read_grant_preview(
@@ -272,7 +274,11 @@ impl RuntimeHost {
             })
             .cloned()
             .collect::<Vec<_>>();
-        debug_assert!(allowed_tools.iter().any(|name| name == tool));
+        debug_assert!(
+            allowed_tools
+                .iter()
+                .any(|name| name == chatcmd_mcp::public_tool_name(tool))
+        );
         Ok(json!({
             "allowedTools": allowed_tools, "pathScopes": scopes, "maxCalls": SAFE_READ_MAX_CALLS,
             "maxFilesScanned": SAFE_READ_MAX_FILES, "maxBytesRead": SAFE_READ_MAX_BYTES,

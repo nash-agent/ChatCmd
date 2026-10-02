@@ -101,7 +101,7 @@ describe('durable compact session', () => {
     await session.cancel();
     expect(api.cancelChatGptCompact).toHaveBeenCalledTimes(1);
     expect(session.getSnapshot().active?.revision).toBe(3);
-    expect(session.getSnapshot().error).toMatch(/Progress changed|Tiến trình đã thay đổi/);
+    expect(session.getSnapshot().error).toMatch(/Progress changed/);
   });
 
   it('preserves active state after a polling failure and exposes a retryable error', async () => {

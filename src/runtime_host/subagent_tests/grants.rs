@@ -28,7 +28,10 @@ async fn inherited_read_grant_is_bounded_and_reserved_from_parent() {
     assert_eq!(child.get::<Option<i64>, _>("max_bytes_read"), Some(4096));
     let tools: Value =
         serde_json::from_str(&child.get::<String, _>("allowed_tools_json")).expect("child tools");
-    assert_eq!(tools, json!(["fs_read_text", "fs_stat"]));
+    assert_eq!(
+        tools,
+        json!(["workspace_read_text_legacy", "workspace_stat"])
+    );
 
     let parent = sqlx::query(
         "SELECT used_calls,used_files_scanned,used_bytes_read FROM approval_grants WHERE id=?",

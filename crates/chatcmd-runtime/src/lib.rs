@@ -1,4 +1,4 @@
-//! Direct, bounded local-machine execution primitives for ChatCMD.
+//! Bounded execution-runtime primitives for ChatCMD.
 
 // RuntimeError intentionally carries structured context used across the public runtime API.
 // Boxing it would be a broad compatibility change, so keep the established result type.
@@ -7,6 +7,7 @@
 mod artifact_quota;
 mod blob_store;
 mod budget;
+mod command_deny_registry;
 mod command_execution_journal;
 mod command_execution_registry;
 mod command_runner;
@@ -16,6 +17,7 @@ mod git_parser;
 mod git_service;
 mod policy;
 mod process_runner;
+mod process_visibility;
 mod project_context;
 mod services;
 mod shell;

@@ -14,6 +14,19 @@ fn metadata_separates_structural_and_behavior_contract_hashes() {
 }
 
 #[test]
+fn workspace_read_image_description_preserves_direct_vision_usage() {
+    let tool = McpServer::tool_router()
+        .list_all()
+        .into_iter()
+        .find(|tool| tool.name == "workspace_read_image")
+        .expect("workspace_read_image tool");
+    let description = tool.description.as_deref().unwrap_or_default();
+    assert!(description.contains("Call directly with path"));
+    assert!(description.contains("never wrap this tool in code or stringify/summarize"));
+    assert!(description.contains("pass its image_path"));
+}
+
+#[test]
 fn behavior_wording_changes_only_the_instruction_hash_channel() {
     let first = serde_json::json!({"description": "first", "version": 1});
     let second = serde_json::json!({"description": "second", "version": 1});
@@ -51,9 +64,9 @@ fn consent_and_git_preview_fields_are_additive_and_safe_by_default() {
 }
 
 #[test]
-fn command_run_schema_and_authorization_metadata_are_explicit() {
-    assert!(TOOL_NAMES.iter().any(|name| name == "command_run"));
-    let capabilities = tool_capabilities("command_run");
+fn execution_run_schema_and_authorization_metadata_are_explicit() {
+    assert!(TOOL_NAMES.iter().any(|name| name == "execution_run"));
+    let capabilities = tool_capabilities("execution_run");
     assert_eq!(
         capabilities.operation_class,
         ToolOperationClass::ProcessExecution
@@ -63,7 +76,7 @@ fn command_run_schema_and_authorization_metadata_are_explicit() {
     assert!(capabilities.mutating);
     assert_eq!(capabilities.path_fields, vec![PathFieldRole::Cwd]);
     let schema = serde_json::to_value(schemars::schema_for!(CommandRunArgs))
-        .expect("command_run input schema");
+        .expect("execution_run input schema");
     assert!(schema["required"].as_array().is_some_and(|required| {
         required.iter().any(|field| field == "executable")
             && required.iter().any(|field| field == "cwd")
@@ -80,7 +93,7 @@ fn executable_contract_examples_deserialize_and_match_advertised_schemas() {
     ))
     .expect("contract examples JSON");
     serde_json::from_value::<CommandRunArgs>(examples["commandRun"].clone())
-        .expect("command_run example");
+        .expect("execution_run example");
     serde_json::from_value::<ProjectContextArgs>(examples["projectContext"].clone())
         .expect("project_context example");
     serde_json::from_value::<GitCommitArgs>(examples["gitPreview"].clone())
@@ -132,14 +145,133 @@ async fn project_rule_digest_changes_without_requiring_catalog_reconnect() {
 }
 
 #[test]
-fn catalog_v8_mismatch_has_reconnect_metadata_and_bounded_recovery() {
+fn catalog_mismatch_has_reconnect_metadata_and_bounded_recovery() {
     let arguments = ToolArguments {
         client_catalog_hash: Some("sha256:v7-cached".to_owned()),
         ..ToolArguments::default()
     };
     let result = catalog_mismatch(&arguments).expect("cached v7 must mismatch");
     let value = result.structured_content.expect("structured mismatch");
-    assert_eq!(value["catalogVersion"], 8);
+    assert_eq!(value["catalogVersion"], CATALOG_VERSION);
     assert_eq!(value["error"]["recovery"], "refreshAndRetry");
     assert_eq!(value["reconnect"]["maxAttempts"], 1);
+}
+
+#[test]
+fn image_generation_tool_is_a_path_scoped_mutation() {
+    let flags = tool_capabilities("generate_image");
+    assert_eq!(flags.operation_class, ToolOperationClass::Mutation);
+    assert_eq!(flags.risk_class, ToolRiskClass::Modify);
+    assert!(flags.approval_required);
+    assert!(flags.mutating);
+    assert_eq!(flags.path_fields, vec![PathFieldRole::Path]);
+    let tool = McpServer::tool_router()
+        .list_all()
+        .into_iter()
+        .find(|tool| tool.name == "generate_image")
+        .expect("generate_image tool");
+    let schema = serde_json::to_value(&tool.input_schema).expect("schema");
+    let properties = &schema["properties"];
+    for field in ["path", "prompt", "jobId", "overwrite", "waitMs", "model"] {
+        assert!(properties.get(field).is_some(), "missing {field}");
+    }
+    let description = tool.description.as_deref().unwrap_or_default();
+    assert!(description.contains("jobId"));
+    // Keep the model-facing contract deployment-neutral while preserving the real effect.
+    for required in [
+        "connected image provider",
+        "authorized destination",
+        "status=running is not completion",
+    ] {
+        assert!(
+            description.contains(required),
+            "missing image operation fact: {required}"
+        );
+    }
+    let exposed =
+        format!("{description}\n{}", serde_json::to_string(&schema).unwrap()).to_ascii_lowercase();
+    for forbidden in [
+        "astra-local",
+        "astra_local",
+        "this computer",
+        "your computer",
+        "chatgpt.com",
+        "chrome",
+        "browser",
+        "signed-in",
+        "chrome extension",
+    ] {
+        assert!(
+            !exposed.contains(forbidden),
+            "model-facing image tool surface leaked {forbidden}"
+        );
+    }
+    assert!(
+        !TOOL_NAMES
+            .iter()
+            .any(|name| name == "workspace_generate_image")
+    );
+}
+
+#[test]
+fn public_catalog_uses_current_names_and_deployment_neutral_descriptions() {
+    let tools = McpServer::tool_router().list_all();
+    assert!(!tools.is_empty());
+    for tool in tools {
+        let description = tool.description.as_deref().unwrap_or_default();
+        let exposed = format!(
+            "{}\n{description}\n{}",
+            tool.name,
+            serde_json::to_string(&tool.input_schema).expect("public schema")
+        )
+        .to_ascii_lowercase();
+        for obsolete in [
+            "astra-local",
+            "astra_local",
+            "this computer",
+            "your computer",
+            "local filesystem",
+            "local process",
+            "local machine",
+            "pty session",
+        ] {
+            assert!(
+                !exposed.contains(obsolete),
+                "{} contains obsolete label {obsolete}",
+                tool.name
+            );
+        }
+        for word in description.split(|c: char| !c.is_ascii_alphanumeric() && c != '_') {
+            assert!(
+                !["fs_", "shell_", "git_", "process_"]
+                    .iter()
+                    .any(|prefix| word.starts_with(prefix))
+                    && word != "command_run",
+                "{} description references unexposed internal operation {word}",
+                tool.name
+            );
+        }
+    }
+}
+
+#[test]
+fn public_names_keep_existing_runtime_authorization_dispatch() {
+    for (public, internal) in [
+        ("execution_run", "command_run"),
+        ("execution_process_stop", "process_kill"),
+        ("workspace_write_text", "fs_write_text"),
+        ("workspace_delete", "fs_delete"),
+        ("generate_image", "fs_write_chatgpt_image"),
+    ] {
+        assert_eq!(runtime_tool_name(public), internal);
+        let public_flags = tool_capabilities(public);
+        let internal_flags = tool_capabilities(internal);
+        assert_eq!(public_flags.operation_class, internal_flags.operation_class);
+        assert_eq!(public_flags.risk_class, internal_flags.risk_class);
+        assert_eq!(
+            public_flags.approval_required,
+            internal_flags.approval_required
+        );
+        assert_eq!(public_flags.mutating, internal_flags.mutating);
+    }
 }

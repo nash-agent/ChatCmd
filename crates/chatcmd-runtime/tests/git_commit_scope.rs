@@ -208,7 +208,7 @@ async fn selected_path_with_staged_and_unstaged_hunks_fails_closed() {
 #[tokio::test]
 async fn literal_unicode_metacharacter_path_and_delete_are_committed() {
     let directory = repository();
-    let unusual = "dữ liệu[1].txt";
+    let unusual = "unicode-猫[1].txt";
     let deleted = "deleted.txt";
     write(&directory.path().join(unusual), "base\n");
     write(&directory.path().join(deleted), "base\n");

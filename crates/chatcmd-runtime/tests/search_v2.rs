@@ -71,7 +71,7 @@ async fn literal_unicode_case_and_multiple_matches_work() {
     let directory = tempfile::tempdir().expect("tempdir");
     fs::write(
         directory.path().join("sample.txt"),
-        "Hello hello\nViệt NAM việt nam\nfoo foo foo\n",
+        "Hello hello\nUNICODE-猫 unicode-猫\nfoo foo foo\n",
     )
     .expect("write");
     let workspace = workspace(directory.path());
@@ -87,7 +87,7 @@ async fn literal_unicode_case_and_multiple_matches_work() {
     assert_eq!(page.data.matches[0].column, 1);
     assert_eq!(page.data.matches[1].column, 7);
 
-    let mut unicode = request(directory.path(), "việt nam");
+    let mut unicode = request(directory.path(), "unicode-猫");
     unicode.case_sensitive = false;
     let page = run(&workspace, &context("unicode-ci"), &unicode).await;
     assert_eq!(page.data.matches.len(), 2);

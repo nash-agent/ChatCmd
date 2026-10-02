@@ -1,17 +1,17 @@
 use super::*;
 
 #[test]
-fn fs_list_v2_advertises_versioned_result_schema_without_changing_legacy_input() {
+fn workspace_list_advertises_versioned_result_schema_without_changing_legacy_input() {
     let manifest = canonical_manifest();
     let tools = manifest["tools"].as_array().expect("manifest tools");
     let legacy = tools
         .iter()
-        .find(|tool| tool["name"] == "fs_list")
-        .expect("legacy fs_list");
+        .find(|tool| tool["name"] == "workspace_list_legacy")
+        .expect("legacy workspace_list_legacy");
     let v2 = tools
         .iter()
-        .find(|tool| tool["name"] == "fs_list_v2")
-        .expect("fs_list_v2");
+        .find(|tool| tool["name"] == "workspace_list")
+        .expect("workspace_list");
 
     assert!(legacy["schema"]["properties"].get("offset").is_some());
     assert!(legacy["schema"]["properties"].get("cursor").is_none());
@@ -34,11 +34,13 @@ fn fs_list_v2_advertises_versioned_result_schema_without_changing_legacy_input()
     assert!(v2["resultSchema"]["properties"].get("truncation").is_some());
     assert!(v2["resultSchema"]["properties"].get("contentRef").is_some());
     let data = &v2["resultSchema"]["properties"]["data"];
-    let data_ref = data["$ref"].as_str().expect("fs_list_v2 data schema ref");
+    let data_ref = data["$ref"]
+        .as_str()
+        .expect("workspace_list data schema ref");
     let definition = data_ref
         .rsplit('/')
         .next()
-        .expect("fs_list_v2 data definition name");
+        .expect("workspace_list data definition name");
     let data_schema = &v2["resultSchema"]["$defs"][definition];
     assert!(data_schema["properties"].get("items").is_some());
     assert!(data_schema["properties"].get("directoryVersion").is_some());
@@ -46,13 +48,13 @@ fn fs_list_v2_advertises_versioned_result_schema_without_changing_legacy_input()
 }
 
 #[test]
-fn fs_search_advertises_v2_cursor_budget_schema_and_legacy_fields() {
+fn workspace_search_advertises_v2_cursor_budget_schema_and_legacy_fields() {
     let manifest = canonical_manifest();
     let tools = manifest["tools"].as_array().expect("manifest tools");
     let search = tools
         .iter()
-        .find(|tool| tool["name"] == "fs_search")
-        .expect("fs_search");
+        .find(|tool| tool["name"] == "workspace_search")
+        .expect("workspace_search");
     let properties = &search["schema"]["properties"];
     for field in [
         "mode",
@@ -73,7 +75,7 @@ fn fs_search_advertises_v2_cursor_budget_schema_and_legacy_fields() {
     ] {
         assert!(
             properties.get(field).is_some(),
-            "missing fs_search schema field {field}"
+            "missing workspace_search schema field {field}"
         );
     }
     assert_eq!(search["capabilities"]["supportsCursor"], true);
@@ -92,24 +94,24 @@ fn fs_search_advertises_v2_cursor_budget_schema_and_legacy_fields() {
         "maxResults": 3,
         "maxFileBytes": 4096
     }))
-    .expect("legacy fs_search request");
+    .expect("legacy workspace_search request");
     assert!(legacy.mode.is_none());
     assert_eq!(legacy.max_results, Some(3));
     assert_eq!(legacy.max_file_bytes, Some(4096));
 }
 
 #[test]
-fn fs_read_text_v2_advertises_streaming_range_contract_and_result_metadata() {
+fn workspace_read_text_advertises_streaming_range_contract_and_result_metadata() {
     let manifest = canonical_manifest();
     let tools = manifest["tools"].as_array().expect("manifest tools");
     let legacy = tools
         .iter()
-        .find(|tool| tool["name"] == "fs_read_text")
-        .expect("legacy fs_read_text");
+        .find(|tool| tool["name"] == "workspace_read_text_legacy")
+        .expect("legacy workspace_read_text_legacy");
     let v2 = tools
         .iter()
-        .find(|tool| tool["name"] == "fs_read_text_v2")
-        .expect("fs_read_text_v2");
+        .find(|tool| tool["name"] == "workspace_read_text")
+        .expect("workspace_read_text");
 
     assert!(legacy["schema"]["properties"].get("startLine").is_some());
     assert!(legacy["schema"]["properties"].get("range").is_none());

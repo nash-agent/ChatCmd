@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::sync::LazyLock;
 
 pub const PROTOCOL_VERSION: u32 = 2;
-pub const CATALOG_VERSION: u32 = 8;
+pub const CATALOG_VERSION: u32 = 13;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -235,6 +235,7 @@ pub(crate) fn canonicalize_contract(value: Value) -> Value {
 }
 
 fn capability_flags(name: &str) -> ToolCapabilityFlags {
+    let name = super::runtime_tool_name(name);
     let risk_class = risk_class(name);
     let operation_class = operation_class(name);
     ToolCapabilityFlags {

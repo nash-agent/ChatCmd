@@ -18,7 +18,7 @@ async fn command_run_wire_preserves_nonzero_exit_as_execution_result() {
         .await
         .expect("list tools")
         .into_iter()
-        .find(|tool| tool.key == "command_run")
+        .find(|tool| tool.key == "execution_run")
         .expect("command_run catalog entry");
     host.repository
         .set_agent_allowed_tools(
@@ -106,7 +106,7 @@ async fn command_run_cannot_spawn_when_c01_mode_denies_execution() {
         .await
         .expect("list tools")
         .into_iter()
-        .find(|tool| tool.key == "command_run")
+        .find(|tool| tool.key == "execution_run")
         .expect("command_run catalog entry");
     host.repository
         .set_agent_allowed_tools(

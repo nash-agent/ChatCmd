@@ -120,7 +120,7 @@ test('closed source pauses without recreating a tab or sending a new handoff', a
   assert.equal(env.shared.creates.length, 0);
   assert.equal(env.sends().length, 0);
   assert.equal(env.serverJob().phase, 'preparing');
-  assert.ok(env.serverJob().detail.includes('cũ'));
+  assert.ok(env.serverJob().detail.includes('previous'));
 });
 
 test('initial source opening is consumed before tab creation and never repeated after lost result', async (t) => {

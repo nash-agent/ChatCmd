@@ -15,7 +15,7 @@ vi.mock('../chatgpt/ChatGptMessageQueue', () => ({ ChatGptMessageQueuePanel: () 
 const missingIdentity: ChatGptBridge = {
   taskId: 'task-a', conversationId: null, conversationUrl: null, model: 'Auto',
   activeStatus: 'completed', taskStatus: 'completed',
-  latestRequestId: 'request-a', latestSubmittedContent: 'xin chào',
+  latestRequestId: 'request-a', latestSubmittedContent: 'hello',
 };
 const syncedIdentity: ChatGptBridge = {
   ...missingIdentity,
@@ -38,7 +38,7 @@ describe('ChatGPT identity synchronization', () => {
     render(<ChatGptTaskComposer taskId="task-a" />);
     expect(await screen.findByRole('alert')).toHaveTextContent('the ChatGPT extension cannot access this management endpoint');
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    expect(recoverChatGptIdentity).toHaveBeenCalledWith('request-a', 'xin chào');
+    expect(recoverChatGptIdentity).toHaveBeenCalledWith('request-a', 'hello');
   });
 
   it('surfaces unsuccessful recovery reasons even when extension transport succeeded', async () => {

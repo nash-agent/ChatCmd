@@ -84,7 +84,7 @@ async fn newline_bom_and_long_line_are_bounded() {
 async fn utf8_boundaries_invalid_bytes_and_budget_are_safe() {
     let dir = tempfile::tempdir().unwrap();
     let utf8 = dir.path().join("utf8.txt");
-    std::fs::write(&utf8, "a😀béz").unwrap();
+    std::fs::write(&utf8, "a😀猫ez").unwrap();
     let ws = workspace(dir.path().to_path_buf());
     let result = ws
         .read_text_v2(

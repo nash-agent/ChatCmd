@@ -66,5 +66,5 @@ test('new and legacy prompts with the same operation still fail closed as duplic
   const value = job();
   env.user(env.protocol.handoffPrompt(value, 1), 'legacy');
   env.user(env.protocol.handoffPrompt(value), 'new');
-  assert.throws(() => env.probe(value), /nhiều tin nhắn/i);
+  assert.throws(() => env.probe(value), /multiple messages/i);
 });

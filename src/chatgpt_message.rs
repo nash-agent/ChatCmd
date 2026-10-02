@@ -93,9 +93,9 @@ mod tests {
 
     #[test]
     fn accepts_dom_unicode_spaces_and_line_endings() {
-        let submitted = "D:\\DEV\\ChatCMD\\ChatCMD (ChatCMD.Tunnel) \r\n\r\nVí dụ abcd ";
+        let submitted = "D:\\DEV\\ChatCMD\\ChatCMD (ChatCMD.Tunnel) \r\n\r\nExample abcd ";
         let from_chatgpt =
-            "D:\\DEV\\ChatCMD\\ChatCMD (ChatCMD.Tunnel)\u{00a0}\n\nVí dụ abcd\u{202f}";
+            "D:\\DEV\\ChatCMD\\ChatCMD (ChatCMD.Tunnel)\u{00a0}\n\nExample abcd\u{202f}";
 
         assert!(equivalent(submitted, from_chatgpt));
     }
@@ -109,16 +109,16 @@ mod tests {
     #[test]
     fn accepts_chatgpt_blank_line_jitter_between_paragraphs() {
         assert!(equivalent(
-            "Sử dụng plugin @rust_test\n\nPhần một\n\n\nPhần hai",
-            "Sử dụng plugin @rust\\_test\n\nPhần một\n\n\n\nPhần hai"
+            "Use plugin @rust_test\n\nPart one\n\n\nPart two",
+            "Use plugin @rust\\_test\n\nPart one\n\n\n\nPart two"
         ));
     }
 
     #[test]
     fn accepts_chatgpt_agent_escape_and_echoed_url_link() {
         let submitted =
-            "Sử dụng plugin @test_rust để xử lý http://localhost:8080/api/local/overview";
-        let from_chatgpt = "Sử dụng plugin @test\\_rust để xử lý [http://localhost:8080/api/local/overview](http://localhost:8080/api/local/overview)";
+            "Use plugin @test_rust to process http://localhost:8080/api/local/overview";
+        let from_chatgpt = "Use plugin @test\\_rust to process [http://localhost:8080/api/local/overview](http://localhost:8080/api/local/overview)";
 
         assert!(equivalent(submitted, from_chatgpt));
     }

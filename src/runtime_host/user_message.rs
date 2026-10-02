@@ -14,30 +14,6 @@ mod intent;
 use intent::{intent_hint, is_plan_mode_request};
 
 impl RuntimeHost {
-    pub(super) async fn ensure_user_message_synced(
-        &self,
-        context: &OperationContext,
-    ) -> RuntimeResult<()> {
-        let task_id = required_task_id(context)?;
-        let turn_id = required_turn_id(context)?;
-        let found = sqlx::query_scalar::<_, i64>(
-            "SELECT EXISTS(SELECT 1 FROM timeline_events WHERE task_id=? AND turn_id=? AND actor='user' AND kind='message' LIMIT 1)",
-        )
-        .bind(task_id.as_str())
-        .bind(turn_id.as_str())
-        .fetch_one(self.repository.pool())
-        .await
-        .map_err(|_| RuntimeError::new("storage_error", "user message sync state unavailable"))?;
-        if found == 1 {
-            Ok(())
-        } else {
-            Err(RuntimeError::new(
-                "user_message_sync_required",
-                "call agent_user_message first with the exact current user message and the same turnId before using any other ChatCMD tool",
-            ))
-        }
-    }
-
     pub(super) async fn task_user_path_scopes(
         &self,
         context: &OperationContext,
@@ -291,8 +267,8 @@ impl RuntimeHost {
                 "missingSchemaDoesNotMeanMissingTool": true,
                 "mustDiscoverBeforeUnavailableReply": true,
                 "mustContinueInSameTurn": true,
-                "chatGptDiscoveryHint": "If a needed ChatCMD tool schema is not visible in this turn, use the host connector/resource discovery mechanism (for example api_tool.list_resources) on the current connector with a focused query such as fs_, shell_, git_, skill, task, or agent, then continue the work without asking the user to resend the request.",
-                "recommendedQueries": ["fs_", "shell_", "git_", "skill", "task", "agent"]
+                "chatGptDiscoveryHint": "If a needed ChatCMD tool schema is not visible in this turn, use the host connector/resource discovery mechanism (for example api_tool.list_resources) on the current connector with a focused query such as workspace_, execution_, repository_, skill, task, or agent, then continue the work without asking the user to resend the request.",
+                "recommendedQueries": ["workspace_", "execution_", "repository_", "skill", "task", "agent"]
             }
         }))
     }
@@ -429,9 +405,9 @@ mod tests {
 
     #[test]
     fn duplicate_user_message_must_match_exact_content() {
-        let payload = json!({"role":"user","content":"xin chào"}).to_string();
-        assert!(same_user_message(&payload, "xin chào"));
-        assert!(!same_user_message(&payload, "xin chào!"));
+        let payload = json!({"role":"user","content":"hello"}).to_string();
+        assert!(same_user_message(&payload, "hello"));
+        assert!(!same_user_message(&payload, "hello!"));
     }
 
     #[test]
@@ -444,8 +420,8 @@ mod tests {
     #[test]
     fn first_message_title_is_compact_and_bounded() {
         assert_eq!(
-            compact_task_title("  sửa   lỗi git diff  "),
-            "sửa lỗi git diff"
+            compact_task_title("  fix   git diff error  "),
+            "fix git diff error"
         );
         assert!(compact_task_title(&"x".repeat(100)).chars().count() <= 78);
     }

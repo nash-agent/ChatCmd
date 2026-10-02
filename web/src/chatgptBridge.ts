@@ -3,7 +3,7 @@ import { tr } from './i18n';
 const REQUEST_TYPE = 'chatcmd-chatgpt-extension-request';
 const RESPONSE_TYPE = 'chatcmd-chatgpt-extension-response';
 
-export const REQUIRED_CHATGPT_EXTENSION_VERSION = '0.1.9';
+export const REQUIRED_CHATGPT_EXTENSION_VERSION = '0.1.11';
 
 type BridgeCommand =
   | { action: 'compact-resume'; nonce: string; jobId: string; taskId: string; localBaseUrl: string }
@@ -15,8 +15,9 @@ type BridgeCommand =
   | { action: 'logs'; nonce: string }
   | { action: 'clear-logs'; nonce: string }
   | { action: 'send'; nonce: string; requestId: string; submittedContent: string; model: string; conversationUrl?: string; newConversationUrl?: string; localBaseUrl: string }
-  | { action: 'subagent-send'; nonce: string; subagentId: string; childTaskId: string; submittedContent: string; attempt: number; model: string; newConversationUrl?: string; localBaseUrl: string }
+  | { action: 'subagent-send'; nonce: string; subagentId: string; childTaskId: string; submittedContent: string; attempt: number; effort: 'inherit' | 'low' | 'medium' | 'high' | 'extraHigh'; newConversationUrl?: string; localBaseUrl: string }
   | { action: 'subagent-close'; nonce: string; subagentId: string }
+  | { action: 'image-send'; nonce: string; jobId: string; prompt: string; model: string; localBaseUrl: string }
   | { action: 'stop'; nonce: string; requestId: string; localBaseUrl: string }
   | { action: 'reconcile'; nonce: string; requestId: string }
   | { action: 'recover-identity'; nonce: string; requestId: string; submittedContent: string; localBaseUrl: string };
@@ -27,7 +28,7 @@ export type ChatGptExtensionStatus = { ready: boolean; extensionVersion?: string
 
 export async function chatGptExtensionStatus(conversationUrl?: string): Promise<ChatGptExtensionStatus> {
   try {
-    const response = await bridge({ action: 'ping', nonce: nonce(), conversationUrl }, 1_500);
+    const response = await bridge({ action: 'ping', nonce: nonce(), conversationUrl }, 4_000);
     return {
       ready: true,
       extensionVersion: response.extensionVersion,
@@ -75,12 +76,17 @@ export async function dispatchChatGptRequest(input: { requestId: string; submitt
   await bridge({ action: 'send', nonce: nonce(), ...input, localBaseUrl: window.location.origin }, 5_000);
 }
 
-export async function dispatchSubagentFallback(input: { subagentId: string; childTaskId: string; submittedContent: string; attempt: number; model?: string; newConversationUrl?: string }) {
-  await bridge({ action: 'subagent-send', nonce: nonce(), ...input, model: input.model || 'Auto', localBaseUrl: window.location.origin }, 5_000);
+export async function dispatchSubagentFallback(input: { subagentId: string; childTaskId: string; submittedContent: string; attempt: number; effort?: 'inherit' | 'low' | 'medium' | 'high' | 'extraHigh'; newConversationUrl?: string }) {
+  await bridge({ action: 'subagent-send', nonce: nonce(), ...input, effort: input.effort || 'inherit', localBaseUrl: window.location.origin }, 15_000);
 }
 
 export async function closeSubagentFallbackTab(subagentId: string) {
   await bridge({ action: 'subagent-close', nonce: nonce(), subagentId }, 3_000);
+}
+
+/** Ask the extension to open a new ChatGPT chat for an image job. Returns once the tab is queued. */
+export async function dispatchChatGptImage(input: { jobId: string; prompt: string; model?: string }) {
+  await bridge({ action: 'image-send', nonce: nonce(), ...input, model: input.model || 'Auto', localBaseUrl: window.location.origin }, 15_000);
 }
 
 export async function stopChatGptRequest(requestId: string) {

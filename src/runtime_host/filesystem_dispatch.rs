@@ -133,6 +133,7 @@ pub(super) async fn search(
         budget,
     };
 
+    let public_workspace = host.virtual_workspace_view(context).await;
     let publisher = host.clone();
     let progress_context = context.clone();
     let progress_sequence = Arc::new(AtomicU64::new(0));
@@ -166,7 +167,7 @@ pub(super) async fn search(
                             progress.files_scanned,
                             progress.bytes_scanned,
                             progress.matches_found,
-                            progress.path.display()
+                            public_workspace.project_path(&progress.path)
                         ),
                         "stream": "tool",
                         "encoding": "utf-8",

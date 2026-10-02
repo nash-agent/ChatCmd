@@ -105,7 +105,7 @@ pub(super) async fn checkpoint_compact(
             return Err(Problem::new(
                 StatusCode::CONFLICT,
                 "Local tools are still running",
-                "Đang chờ các lệnh local kết thúc an toàn trước khi viết handoff. Không có tin nhắn nào được gửi thêm.",
+                "Waiting for local commands to finish safely before writing the handoff. No additional messages were sent.",
             ));
         }
     }

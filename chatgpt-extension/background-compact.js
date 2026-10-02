@@ -30,7 +30,7 @@ async function compactDispatch(tabId, job, record, kind, documentToken) {
   const result = await compactSend(tabId, 'dispatch', job, kind, documentToken);
   if (result.sent === false && result.retryable === true && result.documentToken === documentToken) {
     await saveCompactRecord(job.id, { ...record, [field]: 'not-sent' });
-    await compactDetail(record, job, 'Đang chờ nút Gửi của ChatGPT sẵn sàng. Chưa bấm Gửi; sẽ tiếp tục tự động.');
+    await compactDetail(record, job, 'Waiting for ChatGPT\'s Send button to become ready. Send has not been clicked; the process will continue automatically.');
   }
 }
 async function startCompactJob(message, sender) {
@@ -91,36 +91,36 @@ async function compactTick(id) {
       source = await chrome.tabs.create({ url: job.oldConversationUrl, active: false });
     }
     if (!source?.id) {
-      await compactDetail(record, job, 'Đang chờ mở lại cuộc trò chuyện ChatGPT cũ. Tiến trình đã lưu; không tự gửi lại handoff.');
+      await compactDetail(record, job, 'Waiting for the previous ChatGPT conversation to reopen. Progress is saved; do not resend the handoff automatically.');
       return;
     }
     record = await saveCompactRecord(id, { ...record, sourceChatTabId: source.id, initialOpenAllowed: false });
     const probe = await compactSend(source.id, 'probe', job, 'HANDOFF');
     if (probe.markerFound) {
-      if (probe.superseded) throw new Error('Có tin nhắn mới sau yêu cầu handoff. Không lấy phản hồi của lượt khác; hãy hủy và kiểm tra cuộc trò chuyện.');
+      if (probe.superseded) throw new Error('A new message appeared after the handoff request. Do not capture another turn\'s response; cancel and inspect the conversation.');
       if (probe.handoffText) {
         job = await compactCheckpoint(record, job, { phase: 'saving_handoff', handoffText: probe.handoffText, detail: null });
         return;
       }
       await compactDetail(record, job, probe.threadError
-        ? 'ChatGPT chưa hoàn tất handoff. Mở tab để kiểm tra lỗi; nội dung và task cũ được giữ nguyên.'
-        : 'Đang chờ ChatGPT viết xong handoff của đúng lượt này. Có thể đóng tab và mở lại sau.');
+        ? 'ChatGPT has not completed the handoff. Open the tab to inspect the error; the previous content and task are preserved.'
+        : 'Waiting for ChatGPT to finish the handoff for this exact turn. You may close the tab and reopen it later.');
       return;
     }
     const maySend = (job.phase === 'preparing' && record.sourceSend === 'not-attempted') || record.sourceSend === 'not-sent';
     if (!maySend) {
-      await compactDetail(record, job, 'Đang đối chiếu lần gửi handoff đã ghi nhận. Không tự gửi lần hai khi chưa rõ kết quả; mở lại tab hoặc hủy để kiểm tra.');
+      await compactDetail(record, job, 'Reconciling the recorded handoff send. Do not send it twice while the result is unclear; reopen the tab or cancel to inspect.');
       return;
     }
     const ready = await compactSend(source.id, 'prepare', job, 'HANDOFF', probe.documentToken);
-    if (!ready.ready) { await compactDetail(record, job, 'Đang chuẩn bị: dừng phản hồi hiện tại và chờ ô nhập ChatGPT sẵn sàng.'); return; }
+    if (!ready.ready) { await compactDetail(record, job, 'Preparing: stopping the current response and waiting for the ChatGPT composer to become ready.'); return; }
     // The server transition is also the cross-document source dispatch permit.
     job = await compactCheckpoint(record, job, { phase: 'writing_handoff', detail: null });
     await compactDispatch(source.id, job, record, 'HANDOFF', probe.documentToken);
     return;
   }
   if (job.phase === 'saving_handoff') {
-    if (!job.handoffText) throw new Error('Handoff chưa được lưu bền vững; không mở chat mới.');
+    if (!job.handoffText) throw new Error('The handoff has not been durably saved; do not open a new chat.');
     await compactCheckpoint(record, job, { phase: 'opening_new_chat', detail: null });
     return;
   }

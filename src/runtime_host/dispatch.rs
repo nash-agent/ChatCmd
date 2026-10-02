@@ -7,6 +7,8 @@ mod artifact_tools;
 mod command_tools;
 mod filesystem_tools;
 mod helpers;
+mod image_tools;
+mod public_runtime;
 mod tool_authorization;
 
 use chatcmd_core::{
@@ -18,6 +20,8 @@ use chatcmd_runtime::{
     RuntimeResult, ShellCreateRequest, ShellWriteRequest, ToolUsage,
 };
 use serde_json::{Value, json};
+
+use public_runtime::public_device;
 
 use super::turn_file_changes::{FileChangeKind, capture_snapshot};
 use super::{
@@ -65,6 +69,8 @@ impl RuntimeHost {
             None
         };
         let workspace = scoped_workspace.as_ref().unwrap_or(&self.workspace);
+        let virtual_workspace = self.virtual_workspace_view(&context).await;
+        let arguments = virtual_workspace.resolve_alias_arguments(tool, arguments)?;
         let arguments = if tool.starts_with("fs_") {
             filesystem_dispatch::resolve_relative_paths(arguments, project_folder.as_deref())?
         } else {
@@ -82,16 +88,19 @@ impl RuntimeHost {
         }
 
         match tool {
-            "device_list" => value(vec![self.local_device()]),
+            "device_list" => value(vec![public_device(self.local_device())]),
             "device_get" => {
                 let input: DeviceGet = parse(arguments)?;
-                if input.device_id != self.device.id.as_str() && input.device_id != "local" {
+                if input.device_id != self.device.id.as_str()
+                    && input.device_id != "local"
+                    && input.device_id != "default-runtime"
+                {
                     return Err(RuntimeError::new(
                         "device_not_found",
                         "device was not found",
                     ));
                 }
-                value(self.local_device())
+                value(public_device(self.local_device()))
             }
             "shell_create" => {
                 let input: ShellCreate = parse(arguments)?;
@@ -214,10 +223,15 @@ impl RuntimeHost {
                 let input: SessionInput = parse(arguments)?;
                 value(self.shell.inspect(&input.session_id).await?)
             }
-            "workspace_roots" => match project_folder {
-                Some(project_folder) => value(vec![project_folder]),
-                None => value(task_path_scopes),
-            },
+            "workspace_roots" => {
+                if context.task_id.is_none() {
+                    value(Vec::<String>::new())
+                } else if project_folder.is_some() {
+                    value(vec!["@project".to_owned()])
+                } else {
+                    value(virtual_workspace.aliases())
+                }
+            }
             "project_context" => {
                 let input: ProjectContextInput = parse(arguments)?;
                 let folder = project_folder.ok_or_else(|| {

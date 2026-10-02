@@ -2,11 +2,11 @@ import { getAppLanguage } from '../i18n';
 import type { SubagentRun } from '../types';
 
 const labels = {
-  disabled: ['0 (Disabled)', '0 (Tắt)'],
-  policy: ['0 disables new child Agents in every conversation. Existing running Agents may finish.', '0 tắt việc tạo Agent con trong mọi cuộc trò chuyện. Agent đang chạy được phép hoàn tất.'],
-  capacity: ['The limit is shared by the entire Agent tree. A nested Agent works locally when all slots are occupied.', 'Giới hạn áp dụng cho toàn bộ cây Agent. Khi hết chỗ, Agent con xử lý tại chỗ thay vì gọi thêm Agent.'],
-  header: ['Conversation header', 'Tiêu đề cuộc trò chuyện'],
-  parent: ['Delegated by', 'Được giao bởi'],
+  disabled: ['0 (Disabled)', '0 (Disabled)'],
+  policy: ['0 disables new child Agents in every conversation. Existing running Agents may finish.', '0 disables new child Agents in every conversation. Existing running Agents may finish.'],
+  capacity: ['The limit is shared by the entire Agent tree. A nested Agent works locally when all slots are occupied.', 'The limit is shared by the entire Agent tree. A nested Agent works locally when all slots are occupied.'],
+  header: ['Conversation header', 'Conversation header'],
+  parent: ['Delegated by', 'Delegated by'],
 } as const;
 export function subagentLabel(key: keyof typeof labels) {
   return labels[key][getAppLanguage() === 'vi' ? 1 : 0];

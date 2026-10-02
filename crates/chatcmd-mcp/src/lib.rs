@@ -1,4 +1,4 @@
-//! Official `rmcp` server surface for direct local ChatCMD execution.
+//! Official `rmcp` server surface for the Astra Workspace service.
 
 // RuntimeError is a shared structured API error; keep its established representation.
 #![allow(clippy::result_large_err)]
@@ -23,7 +23,7 @@ use chatcmd_runtime::{
 use rmcp::{
     Peer, RoleServer,
     handler::server::wrapper::Parameters,
-    model::CallToolResult,
+    model::{CallToolResult, ContentBlock},
     schemars,
     service::RequestContext,
     tool, tool_router,
@@ -57,7 +57,7 @@ pub trait OriginPolicy: Send + Sync {
     fn authorize<'a>(&'a self, origin: &'a str) -> BoxFuture<'a, RuntimeResult<()>>;
 }
 
-/// Runtime dispatch boundary. Implementations inject policy, task, device, and local runtime services.
+/// Runtime dispatch boundary. Implementations inject policy, task, target, and execution services.
 pub trait RuntimeApi: Send + Sync {
     fn call<'a>(
         &'a self,

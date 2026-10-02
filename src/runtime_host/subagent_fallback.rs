@@ -100,7 +100,7 @@ impl RuntimeHost {
             .filter(|value| !value.is_empty())
         {
             Some(agent_name) => format!(
-                "Sử dụng plugin @{agent_name} để thực hiện yêu cầu sau:\n\n{delegated_prompt}"
+                "Use plugin @{agent_name} to perform the following request:\n\n{delegated_prompt}"
             ),
             None => delegated_prompt.to_owned(),
         };

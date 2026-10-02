@@ -72,8 +72,8 @@ export function CompactStatusCard() {
     {compact.error && <p className="compact-error" role="alert"><CircleAlert aria-hidden="true" />{compact.error}</p>}
     <div className="compact-status-actions">
       {compact.active && <>
-        {compactReferenceUrl(compact.active.oldConversationUrl) && <a className="button secondary" href={compactReferenceUrl(compact.active.oldConversationUrl)!} target="_blank" rel="noopener noreferrer">Mở lại chat ChatGPT cũ</a>}
-        {compactReferenceUrl(compact.active.newConversationUrl ?? '') && <a className="button secondary" href={compactReferenceUrl(compact.active.newConversationUrl ?? '')!} target="_blank" rel="noopener noreferrer">Mở lại chat ChatGPT mới</a>}
+        {compactReferenceUrl(compact.active.oldConversationUrl) && <a className="button secondary" href={compactReferenceUrl(compact.active.oldConversationUrl)!} target="_blank" rel="noopener noreferrer">Reopen old ChatGPT chat</a>}
+        {compactReferenceUrl(compact.active.newConversationUrl ?? '') && <a className="button secondary" href={compactReferenceUrl(compact.active.newConversationUrl ?? '')!} target="_blank" rel="noopener noreferrer">Reopen new ChatGPT chat</a>}
         <button type="button" className="button secondary" disabled={compact.busy || compact.waking} onClick={() => void compact.resume()}>
           <RefreshCw aria-hidden="true" />{compactText('resume')}
         </button>

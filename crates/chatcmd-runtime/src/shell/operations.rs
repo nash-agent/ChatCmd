@@ -2,6 +2,7 @@ use super::*;
 use crate::{
     OperationContext, PolicyContext, ShellCreateRequest, ShellReadResult, ShellSignal,
     ShellWaitResult, ShellWriteRequest, TimelineEvent,
+    command_deny_registry::{validate_shell_input, validate_spawn},
 };
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::{
@@ -100,6 +101,7 @@ impl ShellRuntime {
             .clone()
             .or_else(|| self.inner.config.default_shell.clone())
             .unwrap_or_else(default_shell);
+        validate_spawn(&executable.to_string_lossy(), &request.arguments)?;
         let columns = request.columns.unwrap_or(120).clamp(1, 500);
         let rows = request.rows.unwrap_or(30).clamp(1, 300);
         let mut command = CommandBuilder::new(&executable);
@@ -287,6 +289,7 @@ impl ShellRuntime {
                 "shell_write does not accept NUL bytes",
             ));
         }
+        validate_shell_input(&request.text)?;
         let session = self.session(&request.session_id)?;
         let mut data = request.text.into_bytes();
         if request.append_new_line {

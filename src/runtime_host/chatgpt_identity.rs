@@ -175,7 +175,7 @@ mod tests {
         std::fs::create_dir_all(&project).expect("create bridge project");
         let project_folder = project.display().to_string();
         let request_id = "bridge-request-project-race";
-        let submitted = "Sử dụng plugin @worker để kiểm tra dự án";
+        let submitted = "Use plugin @worker to check project";
         let now = now_ms();
 
         sqlx::query(
@@ -185,7 +185,7 @@ mod tests {
         .bind("bridge-turn-project-race")
         .bind(&agent_id)
         .bind("Auto")
-        .bind("Kiểm tra dự án")
+        .bind("Check project")
         .bind(submitted)
         .bind(&project_folder)
         .bind(now)
@@ -220,7 +220,7 @@ mod tests {
         let winning_task_id = "task-chatgpt-browser-winner";
         let winning_folder = "D:\\DEV\\winning-project";
         let stale_folder = "D:\\DEV\\stale-project";
-        let submitted = "Sử dụng plugin @worker để kiểm tra race";
+        let submitted = "Use plugin @worker to check race";
         let now = now_ms();
 
         sqlx::query(
@@ -246,7 +246,7 @@ mod tests {
         .bind("bridge-turn-already-claimed")
         .bind(&agent_id)
         .bind("Auto")
-        .bind("Kiểm tra race")
+        .bind("Check race")
         .bind(submitted)
         .bind(stale_folder)
         .bind(now)
@@ -261,7 +261,7 @@ mod tests {
                 Some("openai:stale-selection"),
                 &PendingBridgeClaim {
                     request_id: request_id.to_owned(),
-                    user_content: "Kiểm tra race".to_owned(),
+                    user_content: "Check race".to_owned(),
                     project_folder: Some(stale_folder.to_owned()),
                     created_at_ms: now,
                 },

@@ -42,7 +42,7 @@
     const target = event.target instanceof Element ? event.target : null;
     const enter = event.type === 'keydown' && event.key === 'Enter' && !event.shiftKey && !event.isComposing
       && target?.closest('#prompt-textarea,textarea,[contenteditable="true"]');
-    const send = event.type === 'click' && target?.closest('button[data-testid="send-button"],button[aria-label="Send prompt"],button[aria-label="Gửi lời nhắc"]');
+    const send = event.type === 'click' && target?.closest('button[data-testid="send-button"],button[aria-label="Send prompt"],button[aria-label="Send prompt"]');
     const form = event.type === 'submit' && target?.querySelector('#prompt-textarea,textarea,[contenteditable="true"]');
     if (!enter && !send && !form) return;
     bootstrapUntil = Date.now() + 10000;
