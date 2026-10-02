@@ -293,7 +293,7 @@ impl RuntimeHost {
     ) -> RuntimeResult<Vec<GrantPathScope>> {
         let task_id = TaskId::new(context.task_id.as_deref().unwrap_or_default())
             .map_err(|error| invalid("taskId", error))?;
-        let mut paths = self.task_user_path_scopes(context).await?;
+        let mut paths = self.effective_task_path_scopes(context).await?;
         if let Some(project) = self
             .repository
             .task(&task_id)

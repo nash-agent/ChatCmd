@@ -1,4 +1,5 @@
 use super::*;
+use chatcmd_runtime::ShellCreateRequest;
 
 #[tokio::test]
 async fn expired_running_lease_times_out_and_unblocks_parent() {

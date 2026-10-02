@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { api } from '../api';
 
 describe('local API client', () => {
+  it('sends explicit project opt-in and revocation booleans through local endpoints', async () => {
+    const fetchMock = vi.fn((_path: string | URL | Request, _init?: RequestInit) => Promise.resolve(new Response('{}', { status: 200 })));
+    vi.stubGlobal('fetch', fetchMock);
+    const input = { name: 'Dotty', path: '/projects/dotty', allowAllConversations: true };
+    await api.saveWorkspaceProject(input);
+    await api.updateWorkspaceProject('project/1', { ...input, allowAllConversations: false });
+    expect(fetchMock.mock.calls[0]).toEqual(['/api/local/workspaces/projects', expect.objectContaining({ method: 'POST', body: JSON.stringify(input) })]);
+    expect(fetchMock.mock.calls[1]).toEqual(['/api/local/workspaces/projects/project%2F1', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ ...input, allowAllConversations: false }) })]);
+  });
+
   it('sends local marker and no credential header', async () => {
     vi.stubGlobal('fetch', vi.fn((_path, init) => {
       const headers = new Headers(init?.headers);

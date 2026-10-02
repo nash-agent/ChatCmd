@@ -3,10 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use chatcmd_runtime::{OperationContext, RuntimeError, RuntimeResult};
+use chatcmd_runtime::{RuntimeError, RuntimeResult};
 use serde_json::Value;
 
-use super::RuntimeHost;
+#[path = "virtual_workspace_shared.rs"]
+mod shared;
 
 const PROJECT_ALIAS: &str = "@project";
 const RUNTIME_ALIAS: &str = "@runtime";
@@ -14,6 +15,7 @@ const RUNTIME_ALIAS: &str = "@runtime";
 #[derive(Clone, Debug)]
 pub(super) struct VirtualWorkspaceView {
     roots: Vec<VirtualRoot>,
+    shared_aliases: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -21,38 +23,6 @@ struct VirtualRoot {
     alias: String,
     physical: PathBuf,
     variants: Vec<String>,
-}
-
-impl RuntimeHost {
-    pub(super) async fn virtual_workspace_view(
-        &self,
-        context: &OperationContext,
-    ) -> VirtualWorkspaceView {
-        let project_folder =
-            <Self as chatcmd_mcp::RuntimeApi>::project_folder(self, context.task_id.as_deref())
-                .await
-                .ok()
-                .flatten()
-                .map(PathBuf::from);
-
-        let mut roots = self.workspace.roots().to_vec();
-        match self.task_user_path_scopes(context).await {
-            Ok(scopes) => roots.extend(scopes),
-            Err(error) => {
-                tracing::warn!(
-                    code = %error.code,
-                    "virtual workspace path scopes unavailable; configured roots remain masked"
-                );
-            }
-        }
-        if let Some(project) = project_folder.as_ref()
-            && !roots.iter().any(|root| same_path(root, project))
-        {
-            roots.push(project.clone());
-        }
-
-        VirtualWorkspaceView::new(project_folder, roots)
-    }
 }
 
 impl VirtualWorkspaceView {
@@ -91,7 +61,14 @@ impl VirtualWorkspaceView {
             projected.push(VirtualRoot::new(alias, root));
         }
 
-        Self { roots: projected }
+        Self {
+            roots: projected,
+            shared_aliases: Vec::new(),
+        }
+    }
+
+    pub(super) fn shared_aliases(&self) -> &[String] {
+        &self.shared_aliases
     }
 
     pub(super) fn aliases(&self) -> Vec<String> {
@@ -426,8 +403,8 @@ fn mask_windows_absolute_prefixes(text: &str) -> String {
             continue;
         }
 
-        let drive_boundary = index == 0
-            || !bytes[index - 1].is_ascii_alphanumeric() && bytes[index - 1] != b'_';
+        let drive_boundary =
+            index == 0 || !bytes[index - 1].is_ascii_alphanumeric() && bytes[index - 1] != b'_';
         let drive = drive_boundary
             && index + 3 <= bytes.len()
             && bytes[index].is_ascii_alphabetic()

@@ -22,6 +22,7 @@ mod persistence;
 mod plan_prompt;
 pub(crate) mod plan_prompt_persistence;
 mod queued_messages;
+mod shared_project_access;
 mod subagent_concurrency;
 mod subagent_contract;
 mod subagent_fallback;
@@ -40,7 +41,8 @@ mod user_message_project_tests;
 #[cfg(test)]
 pub(crate) mod user_message_tests;
 mod virtual_workspace;
-
+use crate::websocket::AppEvent;
+pub(crate) use activity_control::{ActivityRegistry, StopActivityResult};
 use chatcmd_core::{LocalDevice, TaskId, TaskStore as _};
 use chatcmd_mcp::RuntimeApi;
 use chatcmd_runtime::{
@@ -59,16 +61,12 @@ use std::{
     },
 };
 use tokio::sync::{Mutex, broadcast};
-
-use crate::websocket::AppEvent;
 pub(crate) const MANAGED_ARTIFACT_PREFIX: &str = "managed:v1:";
-pub(crate) use activity_control::{ActivityRegistry, StopActivityResult};
 pub(crate) use plan_prompt::{
     PlanPromptRegistry, PlanPromptResolution, PlanPromptResolveError, PlanPromptView,
 };
 pub(super) use task_serialization::task_json;
 use turn_file_changes::TurnFileChangeTracker;
-
 #[derive(Clone)]
 pub(crate) struct RuntimeHost {
     repository: SqliteRepository,

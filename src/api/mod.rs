@@ -47,6 +47,8 @@ mod task_execution_mode;
 pub(crate) mod task_views;
 mod tunnels;
 mod updates;
+#[cfg(test)]
+mod workspace_project_access_tests;
 mod workspaces;
 
 use overview::default_shell;

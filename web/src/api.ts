@@ -1,7 +1,7 @@
 import { tr } from './i18n';
 import type { CompactHistory, CompactJob } from './chatgpt/compact/types';
 import type { UpdateStatus } from './updates/types';
-import type { Agent, AgentInput, ChatGptBridge, ChatGptQueuedMessage, ChatGptRequest, CommandExecutionMode, LiveTerminalOutput, LocalSettings, McpStatus, Overview, PlanQuestion, PlanQuestionAnswer, PluginLink, ProblemDetails, SecretResult, Session, SessionDetail, Skill, SkillInstallPreview, SkillInstallResult, SkillOptionValue, Task, TaskActivityDetail, TaskDetail, TaskPage, Tool, ToolPreset, Tunnel, TunnelTestResult, UserSkill, WorkspaceProject } from './types';
+import type { Agent, AgentInput, ChatGptBridge, ChatGptQueuedMessage, ChatGptRequest, CommandExecutionMode, LiveTerminalOutput, LocalSettings, McpStatus, Overview, PlanQuestion, PlanQuestionAnswer, PluginLink, ProblemDetails, SecretResult, Session, SessionDetail, Skill, SkillInstallPreview, SkillInstallResult, SkillOptionValue, Task, TaskActivityDetail, TaskDetail, TaskPage, Tool, ToolPreset, Tunnel, TunnelTestResult, UserSkill, WorkspaceProject, WorkspaceProjectInput } from './types';
 
 export class ApiError extends Error {
   constructor(message: string, public status?: number, public problem?: ProblemDetails) { super(message); this.name = 'ApiError'; }
@@ -96,8 +96,8 @@ export const api = {
   restartElevated: () => request<ElevationStatus>('/api/local/system/elevation/restart', { method: 'POST', body: '{}' }),
   exitApplication: () => request<{ closing: boolean }>('/api/local/system/exit', { method: 'POST', body: '{}' }),
   workspaceProjects: () => request<WorkspaceProject[]>('/api/local/workspaces/projects'),
-  saveWorkspaceProject: (input: { name: string; path: string; chatGptProjectUrl?: string }) => request<WorkspaceProject>('/api/local/workspaces/projects', { method: 'POST', body: json(input) }),
-  updateWorkspaceProject: (id: string, input: { name: string; path: string; chatGptProjectUrl?: string }) => request<WorkspaceProject>(`/api/local/workspaces/projects/${item(id)}`, { method: 'PUT', body: json(input) }),
+  saveWorkspaceProject: (input: WorkspaceProjectInput) => request<WorkspaceProject>('/api/local/workspaces/projects', { method: 'POST', body: json(input) }),
+  updateWorkspaceProject: (id: string, input: WorkspaceProjectInput) => request<WorkspaceProject>(`/api/local/workspaces/projects/${item(id)}`, { method: 'PUT', body: json(input) }),
   deleteWorkspaceProject: (id: string) => request<{ deleted: boolean; deletedConversations: number; preservedConversations: number }>(`/api/local/workspaces/projects/${item(id)}`, { method: 'DELETE' }),
   reorderWorkspaceProjects: (projectIds: string[]) => request<void>('/api/local/workspaces/projects/order', { method: 'PUT', body: json({ projectIds }) }),
   createChatGptRequest: (input: { agentId: string; model?: string; projectFolder?: string; content: string }) => request<ChatGptRequest>('/api/local/chatgpt/requests', { method: 'POST', body: json(input) }),

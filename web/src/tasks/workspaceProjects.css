@@ -35,6 +35,11 @@
 .workspace-project-form label small{color:var(--subtle);font-size:9px;font-weight:500;line-height:1.5;overflow-wrap:anywhere}
 .workspace-project-form input{width:100%;min-height:45px;border:1px solid var(--border);border-radius:11px;background:var(--surface-2);padding:0 12px;color:var(--text);outline:0}
 .workspace-project-form input:focus{border-color:color-mix(in srgb,var(--accent) 58%,var(--border));box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent)}
+.workspace-project-access{display:grid;gap:7px;border:1px solid var(--border);border-radius:11px;padding:12px}
+.workspace-project-form .workspace-project-access-toggle{display:flex;align-items:center;gap:9px;color:var(--text);cursor:pointer}
+.workspace-project-access-toggle input[type=checkbox]{width:16px;height:16px;min-height:16px;flex:0 0 auto;margin:0;padding:0;accent-color:var(--accent)}
+.workspace-project-access-toggle input:disabled{cursor:wait}
+.workspace-project-access p{margin:0;color:var(--muted);font-size:10px;line-height:1.5;overflow-wrap:anywhere}
 .workspace-project-folder{width:100%;min-height:48px;display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:11px;background:var(--surface-2);padding:9px 12px;text-align:left;color:var(--text)}
 .workspace-project-folder:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));background:var(--surface-3)}
 .workspace-project-folder.empty{color:var(--muted)}

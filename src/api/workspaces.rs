@@ -15,6 +15,9 @@ use crate::websocket::AppState;
 
 use super::{Problem, db_problem, iso_ms, now_ms, task_delete::delete_task_by_id};
 
+#[path = "workspace_project_access.rs"]
+mod access;
+
 const MAX_PROJECT_NAME_CHARS: usize = 160;
 const MAX_PROJECT_PATH_CHARS: usize = 4_096;
 
@@ -23,6 +26,8 @@ const MAX_PROJECT_PATH_CHARS: usize = 4_096;
 pub(super) struct SaveWorkspaceProject {
     name: String,
     path: String,
+    #[serde(default)]
+    allow_all_conversations: bool,
     #[serde(rename = "chatGptProjectUrl")]
     chatgpt_project_url: Option<String>,
 }
@@ -37,7 +42,7 @@ pub(super) async fn workspace_projects(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, Problem> {
     let rows = sqlx::query(
-        "SELECT id,name,path,chatgpt_project_url,sort_order,created_at_ms,updated_at_ms FROM workspace_projects ORDER BY COALESCE(sort_order, 2147483647), updated_at_ms DESC, name COLLATE NOCASE",
+        "SELECT id,name,path,allow_all_conversations,chatgpt_project_url,sort_order,created_at_ms,updated_at_ms FROM workspace_projects ORDER BY COALESCE(sort_order, 2147483647), updated_at_ms DESC, name COLLATE NOCASE",
     )
     .fetch_all(state.repository.pool())
     .await
@@ -55,24 +60,30 @@ pub(super) async fn save_workspace_project(
     let path = input.path.trim();
     let chatgpt_project_url = normalize_chatgpt_project_url(input.chatgpt_project_url.as_deref())?;
     validate_project_input(name, path)?;
+    let global_access_path = access::approved_path(path, input.allow_all_conversations)?;
     let canonical = canonical_project_path(path);
     let id = format!("project-{}", Uuid::new_v4());
     let now = now_ms();
+    let mut transaction = state.repository.pool().begin().await.map_err(db_problem)?;
     sqlx::query(
-        "INSERT INTO workspace_projects(id,name,path,canonical_path,chatgpt_project_url,sort_order,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,(SELECT COALESCE(MAX(sort_order),-1)+1 FROM workspace_projects),?,?) ON CONFLICT(canonical_path) DO UPDATE SET name=excluded.name,path=excluded.path,chatgpt_project_url=excluded.chatgpt_project_url,updated_at_ms=excluded.updated_at_ms",
+        "INSERT INTO workspace_projects(id,name,path,canonical_path,chatgpt_project_url,allow_all_conversations,global_access_path,sort_order,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,(SELECT COALESCE(MAX(sort_order),-1)+1 FROM workspace_projects),?,?) ON CONFLICT(canonical_path) DO UPDATE SET name=excluded.name,path=excluded.path,chatgpt_project_url=excluded.chatgpt_project_url,allow_all_conversations=excluded.allow_all_conversations,global_access_path=excluded.global_access_path,updated_at_ms=excluded.updated_at_ms",
     )
     .bind(&id)
     .bind(name)
     .bind(path)
     .bind(&canonical)
     .bind(chatgpt_project_url.as_deref())
+    .bind(input.allow_all_conversations)
+    .bind(global_access_path.as_deref())
     .bind(now)
     .bind(now)
-    .execute(state.repository.pool())
+    .execute(&mut *transaction)
     .await
     .map_err(db_problem)?;
+    access::revoke_grants(&mut transaction, now).await?;
+    transaction.commit().await.map_err(db_problem)?;
     let row = sqlx::query(
-        "SELECT id,name,path,chatgpt_project_url,created_at_ms,updated_at_ms FROM workspace_projects WHERE canonical_path=?",
+        "SELECT id,name,path,allow_all_conversations,chatgpt_project_url,created_at_ms,updated_at_ms FROM workspace_projects WHERE canonical_path=?",
     )
     .bind(&canonical)
     .fetch_one(state.repository.pool())
@@ -90,6 +101,7 @@ pub(super) async fn update_workspace_project(
     let path = input.path.trim();
     let chatgpt_project_url = normalize_chatgpt_project_url(input.chatgpt_project_url.as_deref())?;
     validate_project_input(name, path)?;
+    let global_access_path = access::approved_path(path, input.allow_all_conversations)?;
 
     let existing = sqlx::query("SELECT id,path,canonical_path FROM workspace_projects WHERE id=?")
         .bind(&id)
@@ -124,12 +136,14 @@ pub(super) async fn update_workspace_project(
     let now = now_ms();
     let mut transaction = state.repository.pool().begin().await.map_err(db_problem)?;
     sqlx::query(
-        "UPDATE workspace_projects SET name=?,path=?,canonical_path=?,chatgpt_project_url=?,updated_at_ms=? WHERE id=?",
+        "UPDATE workspace_projects SET name=?,path=?,canonical_path=?,chatgpt_project_url=?,allow_all_conversations=?,global_access_path=?,updated_at_ms=? WHERE id=?",
     )
     .bind(name)
     .bind(path)
     .bind(&canonical)
     .bind(chatgpt_project_url.as_deref())
+    .bind(input.allow_all_conversations)
+    .bind(global_access_path.as_deref())
     .bind(now)
     .bind(&id)
     .execute(&mut *transaction)
@@ -171,10 +185,11 @@ pub(super) async fn update_workspace_project(
             }
         }
     }
+    access::revoke_grants(&mut transaction, now).await?;
     transaction.commit().await.map_err(db_problem)?;
 
     let row = sqlx::query(
-        "SELECT id,name,path,chatgpt_project_url,created_at_ms,updated_at_ms FROM workspace_projects WHERE id=?",
+        "SELECT id,name,path,allow_all_conversations,chatgpt_project_url,created_at_ms,updated_at_ms FROM workspace_projects WHERE id=?",
     )
     .bind(&id)
     .fetch_one(state.repository.pool())
@@ -243,11 +258,14 @@ pub(super) async fn delete_workspace_project(
         deleted += 1;
     }
 
+    let mut transaction = state.repository.pool().begin().await.map_err(db_problem)?;
     sqlx::query("DELETE FROM workspace_projects WHERE id=?")
         .bind(&id)
-        .execute(state.repository.pool())
+        .execute(&mut *transaction)
         .await
         .map_err(db_problem)?;
+    access::revoke_grants(&mut transaction, now_ms()).await?;
+    transaction.commit().await.map_err(db_problem)?;
     Ok(Json(
         json!({ "deleted": true, "deletedConversations": deleted, "preservedConversations": preserved }),
     ))
@@ -367,6 +385,7 @@ fn workspace_project_value(row: &sqlx::sqlite::SqliteRow) -> Value {
         "id": row.get::<String, _>("id"),
         "name": row.get::<String, _>("name"),
         "path": row.get::<String, _>("path"),
+        "allowAllConversations": row.get::<bool, _>("allow_all_conversations"),
         "chatGptProjectUrl": row.get::<Option<String>, _>("chatgpt_project_url"),
         "createdAtUtc": iso_ms(row.get::<i64, _>("created_at_ms")),
         "updatedAtUtc": iso_ms(row.get::<i64, _>("updated_at_ms"))

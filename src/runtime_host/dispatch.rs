@@ -38,7 +38,7 @@ impl RuntimeHost {
     ) -> RuntimeResult<Value> {
         let project_folder = if tool.starts_with("fs_")
             || tool.starts_with("git_")
-            || tool == "shell_create"
+            || tool.starts_with("shell_")
             || tool == "command_run"
             || tool == "workspace_roots"
             || tool == "project_context"
@@ -52,9 +52,10 @@ impl RuntimeHost {
         };
         let mut task_path_scopes = if tool.starts_with("fs_")
             || tool.starts_with("git_")
-            || matches!(tool, "command_run" | "shell_create" | "workspace_roots")
+            || tool.starts_with("shell_")
+            || matches!(tool, "command_run" | "workspace_roots")
         {
-            self.task_user_path_scopes(&context).await?
+            self.effective_task_path_scopes(&context).await?
         } else {
             Vec::new()
         };
@@ -87,6 +88,8 @@ impl RuntimeHost {
                 .await;
         }
 
+        self.check_shell_path_access(&context, tool, &arguments, &task_path_scopes)
+            .await?;
         match tool {
             "device_list" => value(vec![public_device(self.local_device())]),
             "device_get" => {
@@ -223,15 +226,14 @@ impl RuntimeHost {
                 let input: SessionInput = parse(arguments)?;
                 value(self.shell.inspect(&input.session_id).await?)
             }
-            "workspace_roots" => {
-                if context.task_id.is_none() {
-                    value(Vec::<String>::new())
-                } else if project_folder.is_some() {
-                    value(vec!["@project".to_owned()])
-                } else {
-                    value(virtual_workspace.aliases())
-                }
-            }
+            "workspace_roots" => value(
+                self.visible_workspace_roots(
+                    &context,
+                    project_folder.as_deref(),
+                    &virtual_workspace,
+                )
+                .await?,
+            ),
             "project_context" => {
                 let input: ProjectContextInput = parse(arguments)?;
                 let folder = project_folder.ok_or_else(|| {

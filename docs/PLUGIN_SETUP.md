@@ -92,6 +92,15 @@ Before testing, register the working folder in ChatCMD: **Projects → + → Pro
 
 작업 폴더는 ChatCMD의 **Projects → + → Project folder → Choose folder**에서 등록합니다.
 
+To make a registered project available to all conversations, open its add/edit dialog,
+check **Allow access in all conversations**, and save. This is off by default, including
+for existing projects. Shared folders appear in `workspace_roots` with stable aliases;
+existing plugin tool permissions and approval requirements still apply to reads and writes.
+Uncheck and save, or delete the project, to remove this shared scope for subsequent calls.
+Already-running operations are not undone, and independently granted task/user paths remain
+valid. Existing terminal sessions whose working directory loses its only scope reject new
+input and output access; close them explicitly if no longer needed.
+
 1. In a new ChatGPT conversation, type `@` and select the configured plugin. Reload the page if it does not appear.
 2. On the first request, include or select a working project folder so the runtime has a clear workspace.
 3. Watch the ChatCMD management UI for the new task and approve the conversation when prompted.
