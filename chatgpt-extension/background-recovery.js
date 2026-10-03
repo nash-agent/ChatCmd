@@ -28,9 +28,9 @@ async function recoverContentScriptsOnStartup() {
     try {
       if (plan.kind === 'chatgpt') await injectChatGptScripts(tab.id);
       else await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: plan.files });
-      await logExtension('info', 'background', `Restored ${plan.kind} content script in tab ${tab.id} after extension reload.`);
+      await logExtension('info', 'background', `Đã khôi phục content script ${plan.kind} trên tab ${tab.id} sau khi extension reload.`);
     } catch (error) {
-      await logExtension('warn', 'background', `Could not restore ${plan.kind} content script in tab ${tab.id}: ${errorMessage(error)}`);
+      await logExtension('warn', 'background', `Không thể khôi phục content script ${plan.kind} trên tab ${tab.id}: ${errorMessage(error)}`);
     }
   }
 }
@@ -64,7 +64,8 @@ async function recoverRequestIdentity(message) {
   const localBaseUrl = localOrigin(message.localBaseUrl);
   const requestId = String(message.requestId || '').trim();
   const submitted = normalizeIdentityText(message.submittedContent);
-  if (!requestId || !submitted) throw new Error('Missing data required to restore ChatGPT conversation identity.');
+  const marker = `[[CHATCMD-REQUEST:${requestId}]]`;
+  if (!requestId || !submitted) throw new Error('Thiếu dữ liệu để khôi phục ChatGPT conversation identity.');
 
   const durable = await recoveryRequestContext(requestId);
   if (durable?.tabId) {
@@ -74,20 +75,25 @@ async function recoverRequestIdentity(message) {
 
   const exact = [];
   const textMatches = [];
-  for (const tab of await chatGptTabs()) {
+  let probed = 0;
+  let readable = 0;
+  const tabs = await chatGptTabs();
+  for (const tab of tabs) {
     if (!tab?.id || !conversationIdFromUrl(tab.url || '')) continue;
     try {
       const probe = await sendToChatGpt(tab.id, { type: 'chatcmd-chatgpt-identity-probe' }, { quiet: true });
       if (!probe?.conversationId || !probe?.conversationUrl) continue;
+      probed += 1;
+      if (probe.userText) readable += 1;
       const candidate = { tab, probe };
-      if (probe.requestId === requestId) exact.push(candidate);
+      if (probe.requestId === requestId || probe.requestMarkers?.includes(requestId) || probe.userText?.includes(marker)) exact.push(candidate);
       else if (normalizeIdentityText(probe.userText) === submitted) textMatches.push(candidate);
     } catch { /* unrelated/stale ChatGPT tab */ }
   }
   const matches = exact.length ? exact : textMatches;
   if (matches.length !== 1) {
     const reason = matches.length ? 'ambiguous_match' : 'matching_tab_not_found';
-    await logExtension('warn', 'recovery', `Could not restore request ${requestId}: ${reason}; exact=${exact.length}; text=${textMatches.length}.`);
+    await logExtension('warn', 'recovery', `Không thể khôi phục request ${requestId}: ${reason}; tabs=${tabs.length}; probed=${probed}; readable=${readable}; exact=${exact.length}; text=${textMatches.length}.`);
     return { recovered: false, reason };
   }
   return persistRecoveredIdentity(matches[0].tab, matches[0].probe, requestId, localBaseUrl);
@@ -113,7 +119,7 @@ async function persistRecoveredIdentity(tab, probe, requestId, localBaseUrl) {
   await chrome.storage.session.set({ [requestKey(requestId)]: { localBaseUrl, tabId: tab.id, conversationUrl: probe.conversationUrl } });
   await bindConversationTab(probe.conversationId, tab.id, { requestId, localBaseUrl });
   await forgetRecoveryRequest(requestId);
-  await logExtension('info', 'recovery', `Restored request ${requestId} from tab ${tab.id}.`);
+  await logExtension('info', 'recovery', `Đã khôi phục request ${requestId} từ tab ${tab.id}.`);
   return { recovered: true, tabId: tab.id, tabUrl: probe.conversationUrl };
 }
 

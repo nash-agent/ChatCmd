@@ -8,17 +8,12 @@ const LOG_KEY = 'chatcmd-extension-logs';
 const MAX_LOGS = 200;
 const CHATGPT_HOME = 'https://chatgpt.com/';
 
-importScripts('background-io.js', 'background-tabs.js', 'approval-bridge.js', 'background-recovery.js', 'background-capture.js', 'background-clock.js', 'background-subagent-heartbeat.js', 'compact-protocol.js', 'background-compact-destination.js', 'background-compact.js');
-importScripts('background-visual.js');
-importScripts('background-image.js');
-importScripts('background-subagent-failure.js');
+importScripts('background-io.js', 'background-tabs.js', 'approval-bridge.js', 'background-recovery.js', 'background-capture.js', 'background-clock.js', 'background-subagent-heartbeat.js', 'background-subagent-failure.js', 'compact-protocol.js', 'background-compact-destination.js', 'background-compact.js');
 setTimeout(() => void recoverContentScriptsOnStartup(), 200);
 void reconcileOpenChatGptIdentities();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message !== 'object') return false;
-  if (handleVisualBridgeMessage(message, sendResponse)) return true;
-  if (handleImageBridgeMessage(message, sender, sendResponse)) return true;
   if (message.type === 'chatcmd-approval-state-request') {
     void approvalBridgeState()
       .then((state) => sendResponse({ ok: true, ...state }))
@@ -33,6 +28,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === 'chatcmd-local-command') {
     if (message.localBaseUrl) void configureApprovalBridge(message.localBaseUrl).catch(() => undefined);
+    if (typeof message.approvalSoundEnabled === 'boolean') configureApprovalSound(message.approvalSoundEnabled);
     if (message.action === 'ping') {
       void chatGptTabStatus(message.conversationUrl, sender.tab?.id)
         .then((status) => sendResponse({ ok: true, extensionVersion: chrome.runtime.getManifest().version, ...status }))
@@ -58,13 +54,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const localBaseUrl = localOrigin(message.localBaseUrl);
         if (!message.subagentId || !message.childTaskId || !message.submittedContent
           || !Number.isInteger(Number(message.attempt)) || Number(message.attempt) < 1 || Number(message.attempt) > 3) {
-          throw new Error('Invalid sub-agent fallback request.');
+          throw new Error('Yêu cầu fallback sub-agent không hợp lệ.');
         }
+        // Acknowledge transport admission, not tab readiness or successful child work.
+        // Startup can exceed the UI's 5s ACK deadline; report its failures via the API only.
         void startSubagentRequest({ ...message, localBaseUrl })
-          .catch((error) => void reportSubagentFailure(message.subagentId, message.attempt, localBaseUrl, error)
-            .catch((reportError) => console.warn('Failed to report sub-agent startup error:', reportError)));
-        // Acknowledge receipt before opening and waiting for the ChatGPT tab.
-        // Startup failures are reported through fallback/result, fenced by attempt.
+          .catch((error) => reportSubagentFailure(message.subagentId, message.attempt, localBaseUrl, error));
         sendResponse({ ok: true, accepted: true });
       } catch (error) { sendResponse({ ok: false, error: errorMessage(error) }); }
       return false;
@@ -154,7 +149,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 async function startRequest(message) {
-  if (!message.requestId || !message.submittedContent) throw new Error('Invalid ChatGPT send request.');
+  if (!message.requestId || !message.submittedContent) throw new Error('Yêu cầu gửi ChatGPT không hợp lệ.');
   const target = await conversationTarget(message.conversationUrl);
   const tab = message.conversationUrl
     ? await acquireConversationTab(target)
@@ -173,6 +168,7 @@ async function startRequest(message) {
     requestId: message.requestId,
     submittedContent: message.submittedContent,
     model: message.model || 'Auto',
+    attachments: Array.isArray(message.attachments) ? message.attachments : [],
   });
 }
 
@@ -193,7 +189,7 @@ async function startSubagentRequest(message) {
 
 async function startSubagentRequestOnce(message) {
   if (!message.subagentId || !message.childTaskId || !message.submittedContent || !Number.isInteger(Number(message.attempt))) {
-    throw new Error('Invalid sub-agent fallback request.');
+    throw new Error('Yêu cầu fallback sub-agent không hợp lệ.');
   }
   const attempt = Number(message.attempt);
   const subagentKey = `${SUBAGENT_PREFIX}${message.subagentId}`;
@@ -210,7 +206,11 @@ async function startSubagentRequestOnce(message) {
   const tab = message.conversationUrl
     ? await openConversationTab(target)
     : await chrome.tabs.create({ url: target, active: false });
-  if (!tab?.id) throw new Error('Could not open a ChatGPT tab for the sub-agent.');
+  if (!tab?.id) {
+    throw new Error(message.conversationUrl
+      ? 'Không thể mở lại ChatGPT conversation hiện tại cho sub-agent.'
+      : 'Không thể mở tab ChatGPT mới cho sub-agent.');
+  }
   const requestId = `subagent:${message.subagentId}:${attempt}`;
   await chrome.storage.session.set({
     [requestKey(requestId)]: {
@@ -280,14 +280,14 @@ async function reportSubagentFailure(subagentId, attempt, localBaseUrl, error) {
 
 async function stopRequest(message) {
   localOrigin(message.localBaseUrl);
-  if (!message.requestId) throw new Error('Missing request ID to stop.');
+  if (!message.requestId) throw new Error('Thiếu request ID cần dừng.');
   const context = await requestContext(message.requestId);
-  if (!context?.tabId) throw new Error('Could not find the ChatGPT tab handling this request.');
+  if (!context?.tabId) throw new Error('Không tìm thấy tab ChatGPT đang xử lý yêu cầu này.');
   await chrome.tabs.sendMessage(context.tabId, { type: 'chatcmd-chatgpt-stop', requestId: message.requestId });
 }
 
 async function reconcileRequest(requestId) {
-  if (!requestId) throw new Error('Missing request ID to synchronize.');
+  if (!requestId) throw new Error('Thiếu request ID cần đồng bộ.');
   const context = await requestContext(requestId);
   if (!context?.tabId) return { reconciled: false, reason: 'request_context_missing' };
   const tab = await safeTab(context.tabId);
@@ -316,6 +316,7 @@ async function reportFailure(requestId, localBaseUrl, error) {
     });
   } catch { /* the local app may already be closed */ }
   await releaseRequest(requestId);
+  await forgetRecoveryRequest(requestId);
 }
 
 async function handleClosedTab(tabId) {
@@ -337,7 +338,7 @@ async function handleClosedTab(tabId) {
     if (key.startsWith(SUBAGENT_PREFIX)) removals.push(key);
     if (key.startsWith(REQUEST_PREFIX) && value.localBaseUrl) {
       const requestId = key.slice(REQUEST_PREFIX.length);
-      failures.push(reportFailure(requestId, value.localBaseUrl, new Error('The ChatGPT tab linked to the conversation was closed. Reopen the ChatGPT conversation to continue.')));
+      failures.push(reportFailure(requestId, value.localBaseUrl, new Error('Tab ChatGPT liên kết với cuộc trò chuyện đã bị đóng. Mở lại cuộc trò chuyện ChatGPT để tiếp tục.')));
     }
   }
   if (removals.length) await chrome.storage.session.remove([...new Set(removals)]);
@@ -377,15 +378,17 @@ async function migrateTabBindings(removedTabId, addedTabId) {
   if (removals.length) await chrome.storage.session.remove(removals);
   const tab = await safeTab(addedTabId);
   if (tab?.url) await refreshConversationAliases(addedTabId, tab.url);
-  await logExtension('info', 'background', `Chrome replaced tab ${removedTabId} with ${addedTabId}; moved the ChatCMD binding to the new tab.`);
+  await logExtension('info', 'background', `Chrome thay tab ${removedTabId} bằng ${addedTabId}; đã chuyển binding ChatCMD sang tab mới.`);
 }
 
 async function preferredConversationIdentity(tabId, conversationId, conversationUrl) {
   const tab = tabId ? await safeTab(tabId) : null;
   const liveId = conversationIdFromUrl(tab?.url || '');
-  if (liveId && !isProvisionalConversationId(liveId)) {
-    return { conversationId: liveId, conversationUrl: tab.url };
+  const boundId = conversationId || conversationIdFromUrl(conversationUrl || '');
+  if (boundId && !isProvisionalConversationId(boundId) && liveId && liveId !== boundId) {
+    return { conversationId, conversationUrl };
   }
+  if (liveId && !isProvisionalConversationId(liveId)) return { conversationId: liveId, conversationUrl: tab.url };
   return { conversationId, conversationUrl };
 }
 
@@ -398,7 +401,7 @@ async function reconcileOpenChatGptIdentities() {
       await syncRequestIdentityFromTab(tab.id, tab.url);
     }
   } catch (error) {
-    await logExtension('warn', 'background', `Could not restore ChatGPT conversation identity when the extension started: ${errorMessage(error)}`);
+    await logExtension('warn', 'background', `Không thể khôi phục ChatGPT conversation identity khi extension khởi động: ${errorMessage(error)}`);
   }
 }
 
@@ -408,6 +411,8 @@ async function syncRequestIdentityFromTab(tabId, tabUrl) {
   const stored = await chrome.storage.session.get(null);
   for (const [key, context] of Object.entries(stored)) {
     if (!key.startsWith(REQUEST_PREFIX) || !context || context.tabId !== tabId || !context.localBaseUrl) continue;
+    const boundId = conversationIdFromUrl(context.conversationUrl || '');
+    if (boundId && !isProvisionalConversationId(boundId) && boundId !== liveId) continue;
     const requestId = key.slice(REQUEST_PREFIX.length);
     try {
       if (context.mode === 'subagent' && context.subagentId && context.attempt) {
@@ -422,9 +427,9 @@ async function syncRequestIdentityFromTab(tabId, tabUrl) {
           conversationUrl: tabUrl,
         });
       }
-      await logExtension('info', 'background', `Synchronized conversation ID ${liveId} directly from tab ${tabId}.`);
+      await logExtension('info', 'background', `Đã đồng bộ conversation ID ${liveId} trực tiếp từ tab ${tabId}.`);
     } catch (error) {
-      await logExtension('warn', 'background', `Could not yet synchronize conversation ID ${liveId} from tab ${tabId}: ${errorMessage(error)}`);
+      await logExtension('warn', 'background', `Chưa đồng bộ được conversation ID ${liveId} từ tab ${tabId}: ${errorMessage(error)}`);
     }
   }
 }
@@ -438,14 +443,17 @@ async function refreshConversationAliases(tabId, tabUrl) {
   }
 
   const bindings = await conversationBindings();
+  const hasRealConflict = Object.entries(bindings).some(([key, binding]) => binding?.tabId === tabId && !isProvisionalConversationId(key.slice(CONVERSATION_PREFIX.length)) && key.slice(CONVERSATION_PREFIX.length) !== liveId);
+  if (hasRealConflict) return;
   let metadata = {};
-  const provisionalKeys = [];
+  const staleKeys = [];
   for (const [key, binding] of Object.entries(bindings)) {
     if (!binding || binding.tabId !== tabId) continue;
     const boundId = key.slice(CONVERSATION_PREFIX.length);
+    if (boundId === liveId) continue;
+    staleKeys.push(key);
     if (!isProvisionalConversationId(boundId)) continue;
     metadata = { ...metadata, ...binding };
-    provisionalKeys.push(key);
     await chrome.storage.local.set({
       [`${CONVERSATION_ALIAS_PREFIX}${boundId}`]: {
         conversationId: liveId,
@@ -466,12 +474,12 @@ async function refreshConversationAliases(tabId, tabUrl) {
             conversationUrl: tabUrl,
           });
         }
-        await logExtension('info', 'background', `Upgraded conversation ${boundId} to real ID ${liveId}.`);
+        await logExtension('info', 'background', `Đã nâng conversation ${boundId} thành ID thật ${liveId}.`);
       } catch (error) {
-        await logExtension('warn', 'background', `Could not yet synchronize real ChatGPT conversation ID ${liveId}: ${errorMessage(error)}`);
+        await logExtension('warn', 'background', `Chưa đồng bộ được ChatGPT conversation ID thật ${liveId}: ${errorMessage(error)}`);
       }
     }
   }
   await bindConversationTab(liveId, tabId, metadata);
-  if (provisionalKeys.length) await chrome.storage.session.remove(provisionalKeys);
+  if (staleKeys.length) await chrome.storage.session.remove([...new Set(staleKeys)]);
 }

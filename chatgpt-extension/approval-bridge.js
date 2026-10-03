@@ -6,6 +6,7 @@ let approvalSocket = null;
 let approvalReconnectTimer = null;
 let approvalReconnectAttempt = 0;
 let approvalConnectionGeneration = 0;
+let approvalSoundEnabled = true;
 
 async function startApprovalBridge() {
   const stored = await chrome.storage.local.get(APPROVAL_BASE_URL_KEY);
@@ -171,20 +172,25 @@ async function resyncApprovalQueue() {
   }
 }
 
+function configureApprovalSound(enabled) {
+  approvalSoundEnabled = enabled !== false;
+  void broadcastApprovalState();
+}
+
 async function approvalBridgeState() {
-  return { items: sortedApprovalItems(), baseUrl: approvalBaseUrl, connected: Boolean(approvalSocket && approvalSocket.readyState === WebSocket.OPEN) };
+  return { items: sortedApprovalItems(), baseUrl: approvalBaseUrl, connected: Boolean(approvalSocket && approvalSocket.readyState === WebSocket.OPEN), soundEnabled: approvalSoundEnabled };
 }
 
 async function resolveGlobalApproval(message) {
   const item = message?.item;
   const decision = message?.decision;
-  if (!item?.taskId || !item?.kind) throw new Error('Invalid approval request.');
+  if (!item?.taskId || !item?.kind) throw new Error('Yêu cầu phê duyệt không hợp lệ.');
   if (item.kind === 'conversation') {
-    if (!['allow', 'reject'].includes(decision)) throw new Error('Invalid conversation approval decision.');
+    if (!['allow', 'reject'].includes(decision)) throw new Error('Quyết định phê duyệt đoạn trò chuyện không hợp lệ.');
     await postJson(approvalBaseUrl, `/api/local/tasks/${encodeURIComponent(item.taskId)}/${decision === 'allow' ? 'approve-execution' : 'reject-execution'}`, {});
     approvalItems.delete(conversationApprovalKey(item.taskId));
   } else if (item.kind === 'activity') {
-    if (!item.activityId || !['allow', 'allowSimilar', 'reject'].includes(decision)) throw new Error('Invalid command approval decision.');
+    if (!item.activityId || !['allow', 'allowSimilar', 'reject'].includes(decision)) throw new Error('Quyết định phê duyệt lệnh không hợp lệ.');
     try {
       await postJson(approvalBaseUrl, `/api/local/tasks/${encodeURIComponent(item.taskId)}/activities/${encodeURIComponent(item.activityId)}/approval`, {
         turnId: item.turnId || undefined,
@@ -196,30 +202,30 @@ async function resolveGlobalApproval(message) {
     }
     approvalItems.delete(activityApprovalKey(item.taskId, item.activityId));
   } else if (item.kind === 'plan') {
-    if (!item.questionId) throw new Error('Missing Plan Mode question ID.');
+    if (!item.questionId) throw new Error('Thiếu question ID của Plan Mode.');
     let body;
     if (message.answerKind === 'option') {
       const optionIndex = Number(message.optionIndex);
-      if (optionIndex !== 1 && optionIndex !== 2) throw new Error('Invalid Plan Mode option.');
+      if (optionIndex !== 1 && optionIndex !== 2) throw new Error('Lựa chọn Plan Mode không hợp lệ.');
       body = { kind: 'option', optionIndex };
     } else if (message.answerKind === 'custom') {
       const text = String(message.answerText || '').trim();
-      if (!text) throw new Error('Custom answer cannot be empty.');
+      if (!text) throw new Error('Câu trả lời tùy chỉnh không được để trống.');
       body = { kind: 'custom', text };
     } else {
-      throw new Error('Invalid Plan Mode answer type.');
+      throw new Error('Kiểu câu trả lời Plan Mode không hợp lệ.');
     }
     await postJson(approvalBaseUrl, `/api/local/plan/questions/${encodeURIComponent(item.questionId)}/answer`, body);
     approvalItems.delete(planQuestionKey(item.questionId));
   } else {
-    throw new Error('Unsupported approval type.');
+    throw new Error('Loại phê duyệt không được hỗ trợ.');
   }
   await broadcastApprovalState();
   return { resolved: true };
 }
 
 async function broadcastApprovalState() {
-  const payload = { type: 'chatcmd-global-approval-state', items: sortedApprovalItems() };
+  const payload = { type: 'chatcmd-global-approval-state', items: sortedApprovalItems(), soundEnabled: approvalSoundEnabled };
   const tabs = await chatGptTabs();
   await Promise.all(tabs.filter((tab) => tab.id).map(async (tab) => {
     try { await sendToChatGpt(tab.id, payload, { quiet: true }); } catch { /* tab can still be loading */ }

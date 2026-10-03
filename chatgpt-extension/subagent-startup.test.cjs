@@ -15,8 +15,6 @@ function admissionHarness() {
     chrome: { runtime: { onMessage: { addListener: (fn) => { listener = fn; } } } },
     localOrigin: (url) => { assert.equal(url, 'http://localhost:8080'); return url; },
     configureApprovalBridge: async () => {},
-    handleVisualBridgeMessage: () => false,
-    handleImageBridgeMessage: () => false,
     startSubagentRequest: (message) => new Promise((resolve, reject) => pending.set(message.subagentId, { resolve, reject })),
     reportSubagentFailure: async (...args) => failures.push(args),
     errorMessage: (error) => error.message,
@@ -130,30 +128,4 @@ test('accepted startup failure closes only its own attempt after server acknowle
   assert.equal(h.posted.length, 1);
   assert.deepEqual(h.closed, [['child', 1]]);
   assert.equal(h.removed.length, 0, 'cleanup uses the attempt-fenced close path');
-});
-
-test('recovered children reuse their conversation and preserve configured effort', async () => {
-  const code = source('background.js');
-  const body = code.slice(code.indexOf('async function startSubagentRequestOnce'), code.indexOf('const subagentClosures'));
-  const url = 'https://chatgpt.com/c/existing-child';
-  const opened = [], stored = [], sent = [];
-  const c = vm.createContext({ SUBAGENT_PREFIX: 'child:', requestKey: (id) => `request:${id}`,
-    chrome: { storage: { session: { get: async () => ({}), set: async (value) => stored.push(value) } },
-      tabs: { create: async () => { throw new Error('must not open a new conversation'); } } },
-    conversationTarget: async (value) => value,
-    openConversationTab: async (value) => { opened.push(value); return { id: 7 }; },
-    postJson: async () => ({ active: true, status: 'pending', attempt: 2 }),
-    waitForTab: async () => {}, waitForChatGptReady: async () => {},
-    sendToChatGpt: async (tabId, value) => sent.push({ tabId, ...value }),
-  });
-  vm.runInContext(body, c);
-  await c.startSubagentRequestOnce({ subagentId: 'child', childTaskId: 'task-child',
-    submittedContent: 'Read one file', attempt: 2, conversationUrl: url, effort: 'high',
-    localBaseUrl: 'http://localhost:8080' });
-  assert.deepEqual(opened, [url]);
-  assert.equal(stored[0]['request:subagent:child:2'].conversationUrl, url);
-  assert.equal(sent[0].tabId, 7);
-  assert.equal(sent[0].submittedContent, 'Read one file');
-  assert.equal(sent[0].effort, 'high');
-  assert.equal(sent[0].model, undefined);
 });

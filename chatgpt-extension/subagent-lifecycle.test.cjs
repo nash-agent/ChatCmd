@@ -126,71 +126,20 @@ test('new attempts serialize behind prior startup without dropping or duplicatin
   assert.deepEqual(entered, [1, 2]);
 });
 
-test('sub-agent dispatch acknowledges before a slow tab is ready and reports a later failure once', async () => {
-  const code = source('background.js');
-  const body = code.slice(code.indexOf("    if (message.action === 'subagent-send') {"),
-    code.indexOf("    if (message.action === 'subagent-close') {"));
-  let rejectStartup;
-  const startup = new Promise((_, reject) => { rejectStartup = reject; });
-  const responses = [], failures = [];
-  const c = vm.createContext({
-    localOrigin: (url) => url,
-    startSubagentRequest: () => startup,
-    reportSubagentFailure: async (...args) => { failures.push(args); },
-    console,
-  });
-  vm.runInContext(`globalThis.dispatch = (message, sendResponse) => { ${body} };`, c);
-  const returned = c.dispatch({ action: 'subagent-send', subagentId: 'id', attempt: 1,
-    childTaskId: 'task-id', submittedContent: 'Read a file',
-    localBaseUrl: 'http://localhost:8080' }, (response) => responses.push(response));
-  assert.equal(returned, false);
-  assert.equal(responses.length, 1);
-  assert.equal(responses[0].ok, true);
-  assert.equal(failures.length, 0);
-  rejectStartup(new Error('tab never became ready'));
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(responses.length, 1);
-  assert.equal(failures.length, 1);
-  assert.equal(failures[0][0], 'id');
-  assert.equal(failures[0][1], 1);
-});
-
-test('a late startup failure cannot remove or fail a newer attempt', async () => {
-  const code = source('background.js');
-  const body = code.slice(code.indexOf('async function reportSubagentFailure('),
-    code.indexOf('async function stopRequest('));
-  let cleanupCalls = 0;
-  const c = vm.createContext({
-    SUBAGENT_PREFIX: 'child:',
-    chrome: { storage: { session: { get: async () => ({ 'child:id': { attempt: 2, tabId: 10 } }),
-      remove: async () => { cleanupCalls++; } } }, tabs: { remove: async () => { cleanupCalls++; } } },
-    releaseRequest: async () => { cleanupCalls++; },
-    safeTab: async () => ({ id: 10 }),
-    postJson: async () => { cleanupCalls++; },
-    console,
-  });
-  vm.runInContext(body, c);
-  vm.runInContext(source('background-subagent-failure.js'), c);
-  await c.reportSubagentFailure('id', 1, 'http://localhost:8080', new Error('late'));
-  assert.equal(cleanupCalls, 0);
-});
-
 
 test('startup persists its binding before loading and cannot send before the composer is ready', async () => {
   const code = source('background.js');
   const body = code.slice(code.indexOf('async function startSubagentRequestOnce'), code.indexOf('const subagentClosures'));
-  const order = [], sent = [];
+  const order = [];
   const c = vm.createContext({ SUBAGENT_PREFIX:'child:', requestKey: (id) => `request:${id}`,
     chrome: { storage: { session: { get: async () => ({}), set: async () => { order.push('persist'); } } }, tabs: { create: async () => { order.push('create'); return { id:1 }; } } },
     postJson: async () => ({ active:true, status:'pending' }), normalizeNewConversationUrl: () => 'https://chatgpt.com/',
     waitForTab: async () => { order.push('loaded'); }, waitForChatGptReady: async () => { order.push('ready'); },
-    sendToChatGpt: async (_tabId, payload) => { order.push('send'); sent.push(payload); },
+    sendToChatGpt: async () => { order.push('send'); },
   });
   vm.runInContext(body, c);
-  await c.startSubagentRequestOnce({ subagentId:'id', childTaskId:'task', submittedContent:'work', attempt:1, localBaseUrl:'http://localhost:8080', model:'GPT-5.6 Sol', effort:'high' });
+  await c.startSubagentRequestOnce({ subagentId:'id', childTaskId:'task', submittedContent:'work', attempt:1, localBaseUrl:'http://localhost:8080' });
   assert.deepEqual(order, ['create', 'persist', 'loaded', 'ready', 'send']);
-  assert.equal(sent[0].model, undefined);
-  assert.equal(sent[0].effort, 'high');
 });
 
 test('a stale startup attempt cannot close the current attempt tab', async () => {

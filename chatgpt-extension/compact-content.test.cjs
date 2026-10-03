@@ -17,7 +17,7 @@ test('captures only the owned public generation after a complete, stable end fen
   env.answer('Earlier answer that must not appear', { id: 'older-answer' });
   generation(env, value);
   assert.equal(env.probe(value).handoffText, null);
-  env.advance(2499);
+  env.advance(1199);
   assert.equal(env.probe(value).handoffText, null);
   env.advance(1);
   assert.equal(env.probe(value).handoffText, BODY);
@@ -31,7 +31,7 @@ test('streaming and changed text reset stability; missing/wrong end fence never 
   env.generating(true);
   assert.equal(env.settled(value).handoffText, null);
   env.generating(false);
-  env.advance(2500);
+  env.advance(1200);
   assert.equal(env.probe(value).handoffText, BODY);
   answer.textContent = BODY + ' Still incomplete';
   assert.equal(env.settled(value).handoffText, null);
@@ -66,7 +66,7 @@ test('duplicate marked turns fail closed, while nested wrappers count as one tur
   env.answer(BODY + '\n' + env.protocol.marker('HANDOFF-END', value.id));
   assert.equal(env.settled(value).handoffText, BODY);
   env.user(env.protocol.handoffPrompt(value), 'second');
-  assert.throws(() => env.probe(value), /multiple messages|duplicate/i);
+  assert.throws(() => env.probe(value), /nhiều tin nhắn|duplicate/i);
 });
 
 test('a later user turn supersedes the owned handoff and cannot contaminate capture', (t) => {
@@ -80,13 +80,16 @@ test('a later user turn supersedes the owned handoff and cannot contaminate capt
   assert.equal(result.handoffText, null);
 });
 
-test('unidentified user nodes never authorize capture or locate', async (t) => {
+test('exact public handoff turn without native message id uses a safe DOM identity', async (t) => {
   const env = contentFixture(t);
   const value = job();
   env.user(env.protocol.handoffPrompt(value), null);
   env.answer(BODY + '\n' + env.protocol.marker('HANDOFF-END', value.id));
-  assert.equal(env.settled(value).handoffText, null);
-  assert.equal((await env.message('locate', value)).markerFound, false);
+  const result = env.settled(value);
+  assert.equal(result.markerFound, true);
+  assert.match(result.userMessageId, /^dom-compact:/);
+  assert.equal(result.handoffText, BODY);
+  assert.equal((await env.message('locate', value)).markerFound, true);
 });
 
 test('real transcript parser excludes tool roots, hidden surfaces, commentary and private state', (t) => {
@@ -137,9 +140,11 @@ test('status card stays above input, announces all four steps, and updates witho
     assert.equal(panel.querySelector('p').textContent, '<script>not executable</script>');
     assert.equal(env.w.ChatCmdCompact.busy, true);
   }
+  assert.deepEqual(env.state.renderLeases.at(-1), ['compact', true]);
   await env.message('clear');
   assert.equal(env.w.document.querySelector('[data-chatcmd-ui="compact"]'), null);
   assert.equal(env.w.ChatCmdCompact.busy, false);
+  assert.deepEqual(env.state.renderLeases.at(-1), ['compact', false]);
 });
 
 test('prepare preserves an existing user draft verbatim without model change or send', async (t) => {

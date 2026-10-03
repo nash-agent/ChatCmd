@@ -3,6 +3,7 @@ globalThis.ChatCmdMonitor = Object.freeze({ create(api) {
   return async function waitForAssistant(previousCount, requestId, submittedContent) {
   let baselineCount = previousCount;
   let lastText = '';
+  let lastAnswerId = '';
   let stableSince = 0;
   let lastActivityAt = Date.now();
   let lastStateCheckAt = 0;
@@ -16,14 +17,13 @@ globalThis.ChatCmdMonitor = Object.freeze({ create(api) {
     if (!api.activeRequest || api.activeRequest.id !== requestId || api.activeRequest.resultReported) return latestMessageText('assistant');
     const now = Date.now();
     const nodes = assistantNodes();
-    const latest = nodes.at(-1);
     const recorder = api.activeRequest.observer;
     if (recorder) {
       recorder.scan();
       if (!recorder.active) return recorder.answer;
-      void recorder.flush();
+      void recorder.flush(false, false);
     }
-    const text = recorder ? recorder.answer : (latest?.innerText?.trim() || latest?.textContent?.trim() || '');
+    const text = recorder ? recorder.answer : latestMessageText('assistant');
     const stopButton = findStopButton();
     const threadError = findThreadError();
 
@@ -50,9 +50,13 @@ globalThis.ChatCmdMonitor = Object.freeze({ create(api) {
     }
     const hasNewAssistantText = (recorder ? recorder.hasTurn : nodes.length > baselineCount) && Boolean(text);
     if (hasNewAssistantText) observedProgress = true;
+    if (isSubagent && (!hasNewAssistantText || threadError)) stableSince = 0;
     if (hasNewAssistantText && !threadError) {
-      if (text !== lastText) {
+      const evidence = recorder?.completionEvidence;
+      const answerId = evidence?.assistantMessageId || '';
+      if (text !== lastText || answerId !== lastAnswerId) {
         lastText = text;
+        lastAnswerId = answerId;
         stableSince = now;
         lastActivityAt = now;
       } else if (!stableSince) {
@@ -61,7 +65,7 @@ globalThis.ChatCmdMonitor = Object.freeze({ create(api) {
 
       if (stopButton) stableSince = now;
       const stableMs = stableSince ? now - stableSince : 0;
-      const settleMs = recorder ? 4_000 : api.RAW_BUBBLE_STABILITY_MS;
+      const settleMs = isSubagent ? 12_000 : recorder ? 4_000 : api.RAW_BUBBLE_STABILITY_MS;
       if (!stopButton && stableMs >= settleMs && api.isTerminalRequestState(lastRequestState)) {
         if (!recorder || await recorder.flush(true)) return text;
       }
@@ -70,7 +74,9 @@ globalThis.ChatCmdMonitor = Object.freeze({ create(api) {
         stableMs >= settleMs && now - lastCompletionPingAt >= api.COMPLETION_PING_INTERVAL_MS
       ) {
         lastCompletionPingAt = now;
-        if (await api.reportBrowserCompletion(requestId, text)) return text;
+        const proof = isSubagent && evidence
+          ? { ...evidence, stableForMs: stableMs, generating: false } : undefined;
+        if (await api.reportBrowserCompletion(requestId, text, proof)) return text;
       }
     }
 
@@ -89,7 +95,7 @@ globalThis.ChatCmdMonitor = Object.freeze({ create(api) {
           continue;
         }
         if ((api.activeRequest?.retryCount || 0) >= api.MAX_AUTO_RETRIES) {
-          throw new Error(`ChatGPT still has no final response after ${api.MAX_AUTO_RETRIES} automatic retries.`);
+          throw new Error(`ChatGPT vẫn chưa có phản hồi cuối sau ${api.MAX_AUTO_RETRIES} lần tự động gửi lại.`);
         }
         baselineCount = nodes.length;
         lastText = '';
@@ -102,6 +108,6 @@ globalThis.ChatCmdMonitor = Object.freeze({ create(api) {
     }
     await api.delay(350);
   }
-  throw new Error('Timed out waiting for a completed response from ChatGPT.');
+  throw new Error('Quá lâu chưa nhận được phản hồi hoàn tất từ ChatGPT.');
 };
 } });

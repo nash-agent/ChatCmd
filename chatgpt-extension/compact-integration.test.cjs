@@ -49,16 +49,14 @@ async function integrated(t) {
     assert.equal(source.state.clicks, 1);
     source.answer(BODY + '\n' + source.protocol.marker('HANDOFF-END', value.id));
     source.probe(worker.serverJob());
-    source.advance(2501);
-    await worker.tick();
-    assert.equal(worker.serverJob().phase, 'saving_handoff');
-    assert.equal(worker.serverJob().handoffText, BODY);
+    source.advance(1201);
     await worker.tick();
     assert.equal(worker.serverJob().phase, 'opening_new_chat');
+    assert.equal(worker.serverJob().handoffText, BODY);
+    assert.ok(destination, 'destination opens in the same worker flight after the durable handoff checkpoints');
   }
   async function openDestination() {
     await saveHandoff();
-    await worker.tick();
     assert.ok(destination);
     assert.equal(destination.state.clicks, 0);
     assert.ok(worker.shared.tabs.some((tab) => tab.id === 7), 'source stays until destination is attached');
@@ -69,6 +67,74 @@ async function integrated(t) {
     destination: () => destination };
 }
 
+test('source send recovers when ChatGPT renders the owned user turn without data-message-id', async (t) => {
+  const worker = await workerFixture(t);
+  const value = worker.seed();
+  const source = contentFixture(t);
+  worker.shared.tabs = [{ id: 7, url: value.oldConversationUrl }];
+  source.state.onClick = () => {
+    source.user(source.composer().value, null);
+    source.composer().value = '';
+  };
+  worker.shared.route = (_id, message) => source.message(message.type.replace('chatcmd-compact-', ''),
+    message.job, message.kind, message.documentToken);
+
+  await worker.tick();
+  assert.equal(source.state.clicks, 1);
+  assert.equal(worker.serverJob().phase, 'writing_handoff');
+  assert.equal(worker.record().sourceSend, 'dispatched-unresolved');
+
+  source.answer(BODY + '\n' + source.protocol.marker('HANDOFF-END', value.id));
+  source.probe(worker.serverJob());
+  source.advance(1201);
+  await worker.tick();
+
+  assert.equal(worker.serverJob().phase, 'opening_new_chat');
+  assert.equal(worker.serverJob().handoffText, BODY);
+  assert.equal(worker.shared.creates.length, 1, 'the worker must leave Writing the handoff instead of stalling on its durable send fence');
+  assert.equal(worker.sends('HANDOFF').length, 1, 'recovery must not resend the handoff');
+});
+
+test('destination attach recovers when ChatGPT renders the resume turn without data-message-id', async (t) => {
+  const env = await integrated(t);
+  const destination = await env.openDestination();
+  const tab = env.worker.shared.tabs.find((item) => item.id !== 1 && item.id !== 7);
+  assert.ok(tab, 'destination tab');
+  destination.state.onClick = () => {
+    destination.user(destination.composer().value, null);
+    destination.composer().value = '';
+    tab.url = 'https://chatgpt.com/c/destination-no-native-id';
+    destination.navigate(tab.url);
+    destination.answer('Handoff received.');
+  };
+
+  await env.worker.tick();
+  assert.equal(destination.state.clicks, 1);
+  assert.equal(env.worker.serverJob().phase, 'opening_new_chat');
+  assert.equal(env.worker.record().destinationSend, 'dispatched-unresolved');
+
+  await env.worker.tick();
+  assert.equal(env.worker.serverJob().phase, 'completed');
+  assert.equal(env.worker.serverJob().newConversationId, 'destination-no-native-id');
+  assert.equal(env.worker.sends('RESUME').length, 1, 'destination recovery must not resend the resume handoff');
+});
+
+test('user continuing immediately after RESUME acknowledgement still completes same-task attachment', async (t) => {
+  const env = await integrated(t);
+  const destination = await env.openDestination();
+  await env.worker.tick();
+  assert.equal(destination.state.clicks, 1);
+  assert.equal(env.worker.serverJob().phase, 'opening_new_chat');
+  destination.user('tiếp tục công việc', 'working-user');
+  destination.answer('conversation_compacting_or_archived', { id: 'blocked-working-answer' });
+  await env.worker.tick();
+  assert.equal(env.worker.serverJob().phase, 'completed');
+  assert.equal(env.worker.serverJob().taskId, env.value.taskId);
+  assert.equal(env.worker.serverJob().newConversationId, 'destination-canonical');
+  assert.equal(env.worker.sends('RESUME').length, 1);
+  assert.equal(env.worker.shared.creates.length, 1);
+});
+
 test('real content-worker round trip saves exact handoff, preserves task/model, and sends once per chat', async (t) => {
   const env = await integrated(t);
   const dest = await env.openDestination();
@@ -76,10 +142,8 @@ test('real content-worker round trip saves exact handoff, preserves task/model, 
   assert.equal(dest.state.clicks, 1);
   assert.deepEqual(dest.state.models, [env.value.oldModel]);
   assert.equal(env.worker.serverJob().newConversationId, null);
-  await env.worker.tick(); // Discover canonical URL via real RESUME marker.
+  await env.worker.tick(); // Persist canonical identity, re-probe it, then complete in the same worker flight.
   assert.equal(env.worker.serverJob().newConversationId, 'destination-canonical');
-  assert.equal(env.worker.serverJob().phase, 'opening_new_chat');
-  await env.worker.tick(); // Complete only after identity was durable.
   const completed = env.worker.serverJob();
   assert.equal(completed.phase, 'completed');
   assert.equal(completed.taskId, env.value.taskId);
@@ -142,8 +206,7 @@ test('actual destination click with lost response recovers via exact user marker
 test('lost final checkpoint response finishes browser cleanup after restart without duplicate dispatch', async (t) => {
   const env = await integrated(t);
   const dest = await env.openDestination();
-  await env.worker.tick();
-  await env.worker.tick();
+  await env.worker.tick(); // Dispatch resume; the next tick can commit completion.
   env.worker.shared.afterCheckpoint = async (patch) => {
     if (patch.phase === 'completed') {
       env.worker.shared.afterCheckpoint = null;
@@ -184,7 +247,7 @@ test('parallel tasks retain independent prompts, capture ownership and persisten
     assert.equal(page.state.clicks, 1);
     page.answer(BODY + '\n' + value.taskId + '\n' + page.protocol.marker('HANDOFF-END', value.id));
     page.probe(worker.serverJob(value.id));
-    page.advance(2501);
+    page.advance(1201);
   }
   await Promise.all(jobs.map((value) => worker.run(value.id)));
   await worker.restart();

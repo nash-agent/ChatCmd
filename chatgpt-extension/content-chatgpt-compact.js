@@ -6,6 +6,7 @@
   const dom = globalThis.ChatCmdConversationDom;
   const transcript = globalThis.ChatCmdTranscript;
   const documentToken = crypto.randomUUID();
+  const HANDOFF_STABLE_MS = 1200;
   let currentJob = null;
   let ownedConversationId = null;
   let disposed = false;
@@ -16,6 +17,7 @@
   let panel;
   let pageUrl = location.href;
   const isCurrent = () => !disposed && controller?.current();
+  const setRenderLease = (active) => globalThis.ChatCmdRenderBridge?.setLease?.('compact', active);
   // ProseMirror represents newlines as <p>/<div>/<br>, so textContent alone
   // joins paragraphs and incorrectly rejects the prompt we just inserted.
   function composerText(node) {
@@ -57,14 +59,24 @@
     if (matches.length !== 1) return { duplicate: matches.length > 1, user: null };
     const node = matches[0];
     if (!promptsFor(job, kind).some((text) => comparable(read(node)) === comparable(text))) return { duplicate: false, user: null };
-    const id = node.getAttribute('data-message-id') || node.querySelector('[data-message-id]')?.getAttribute('data-message-id');
-    return { duplicate: false, user: id ? { node, id } : null, last: roots.at(-1) === node };
+    // ChatGPT does not consistently expose data-message-id on rendered user turns.
+    // The unique exact operation prompt already proves ownership; the id is only an
+    // opaque same-document token used by read/close recovery, so synthesize one when
+    // the public DOM omits a native message id instead of leaving compact stuck forever.
+    const nativeId = node.getAttribute('data-message-id') || node.querySelector('[data-message-id]')?.getAttribute('data-message-id');
+    const index = roots.indexOf(node);
+    const id = nativeId || `dom-compact:${job.id}:${index}`;
+    return { duplicate: false, user: { node, id }, last: roots.at(-1) === node };
   }
   function show(job) {
     if (!isCurrent()) return;
-    if (!job || protocol.terminal(job)) { currentJob = null; panel?.remove(); panel = null; return; }
+    if (!job || protocol.terminal(job)) {
+      currentJob = null; ownedConversationId = null; setRenderLease(false);
+      panel?.remove(); panel = null; return;
+    }
     currentJob = job;
     ownedConversationId = transcript.conversationId();
+    setRenderLease(true);
     const composer = controller.findComposer();
     const anchor = composer?.closest('form') || composer?.parentElement;
     if (!anchor?.parentElement) return;
@@ -94,20 +106,20 @@
       item.dataset.done = String(index < at);
       return item;
     }));
-    panel.querySelector('p').textContent = job.detail || 'ChatCMD preserves the conversation and history. You can return later if the tab is closed.';
+    panel.querySelector('p').textContent = job.detail || 'ChatCMD giữ nguyên cuộc trò chuyện và lịch sử. Bạn có thể quay lại sau nếu tab bị đóng.';
   }
   function probe(job, kind) {
-    if (!isCurrent() || !ownsPage(job, kind)) throw new Error('The conversation changed; do not send or capture content.');
+    if (!isCurrent() || !ownsPage(job, kind)) throw new Error('Cuộc trò chuyện đã thay đổi; không gửi hoặc thu thập nội dung.');
     show(job);
     const marked = markedUser(job, kind);
-    if (marked.duplicate) throw new Error('Multiple messages have the same compact ID; inspect manually and do not auto-select a response.');
+    if (marked.duplicate) throw new Error('Có nhiều tin nhắn mang cùng mã compact; cần kiểm tra thủ công, không tự chọn một phản hồi.');
     let text = '';
     if (marked.user && marked.last && kind === 'HANDOFF') {
       const parts = transcript.readParts(marked.user).filter((part) => part.kind === 'answer');
       text = parts.map((part) => part.content).join('\n\n');
     }
     if (text !== stableText || dom.findStopButton()) { stableText = text; stableSince = Date.now(); }
-    const handoff = text && Date.now() - stableSince >= 2500 ? protocol.handoffText(text, job.id) : null;
+    const handoff = text && Date.now() - stableSince >= HANDOFF_STABLE_MS ? protocol.handoffText(text, job.id) : null;
     const canonicalUrl = new URL(location.href);
     canonicalUrl.hash = ''; canonicalUrl.search = '';
     return { documentToken, conversationId: transcript.conversationId(), conversationUrl: canonicalUrl.href,
@@ -117,7 +129,7 @@
       threadError: Boolean(dom.findThreadError()) };
   }
   async function prepare(job, kind, expectedToken) {
-    if (expectedToken !== documentToken || !isCurrent() || !ownsPage(job, kind)) throw new Error('The tab was reloaded; restoring state before sending.');
+    if (expectedToken !== documentToken || !isCurrent() || !ownsPage(job, kind)) throw new Error('Tab đã được tải lại; đang khôi phục trước khi gửi.');
     show(job);
     if (kind === 'HANDOFF' && dom.findStopButton()) { dom.clickStopButton(); return { ready: false }; }
     if (dom.findStopButton()) return { ready: false };
@@ -127,25 +139,28 @@
     if (!composer) return { ready: false };
     const prompt = promptFor(job, kind, composer);
     const text = composerText(composer);
-    if (text && !promptMatches(composer, prompt)) throw new Error('The composer contains a draft. The draft is preserved; save or clear it to continue compacting.');
+    if (text && !promptMatches(composer, prompt)) throw new Error('Ô nhập đang có bản nháp. Bản nháp được giữ nguyên; hãy lưu hoặc xóa bản nháp để tiếp tục compact.');
     if (kind === 'RESUME' && !text) await controller.selectModel(job.oldModel);
     if (!isCurrent() || !ownsPage(job, kind)) return { ready: false };
     composer = controller.findComposer();
-    if (!composer || composerText(composer) !== text) throw new Error('The draft changed during preparation. Your new content is preserved.');
-    if (!promptMatches(composer, prompt)) controller.setComposerText(composer, prompt);
+    if (!composer || composerText(composer) !== text) throw new Error('Bản nháp đã thay đổi trong khi chuẩn bị. Nội dung mới của bạn được giữ nguyên.');
+    if (!promptMatches(composer, prompt)) {
+      controller.setComposerText(composer, prompt);
+      globalThis.ChatCmdRenderBridge?.pulse();
+    }
     // Let the worker poll while React enables/replaces Send. Rewriting on each poll
     // would restart that update and a page timer may be suspended in a hidden tab.
     return { ready: promptMatches(controller.findComposer(), prompt) && Boolean(readySendButton()), documentToken };
   }
   async function dispatch(job, kind, expectedToken) {
-    if (dispatching || expectedToken !== documentToken || !isCurrent() || !ownsPage(job, kind)) throw new Error('Cannot send: the ChatGPT document changed.');
+    if (dispatching || expectedToken !== documentToken || !isCurrent() || !ownsPage(job, kind)) throw new Error('Không thể gửi: tài liệu ChatGPT đã thay đổi.');
     const key = `${kind}:${job.id}`;
     const marked = markedUser(job, kind);
-    if (marked.duplicate) throw new Error('Multiple messages have the same compact ID; do not send another.');
+    if (marked.duplicate) throw new Error('Có nhiều tin nhắn cùng mã compact; không gửi thêm.');
     if (marked.user || dispatched.has(key)) return { sent: true };
     const composer = controller.findComposer();
     const prompt = promptFor(job, kind, composer);
-    if (!composer || !promptMatches(composer, prompt)) throw new Error('The draft changed; compacting will not overwrite the content.');
+    if (!composer || !promptMatches(composer, prompt)) throw new Error('Bản nháp đã thay đổi; compact không ghi đè nội dung.');
     const button = readySendButton();
     // This explicit acknowledgement is the ONLY safe retry proof. Exceptions and
     // missing responses remain ambiguous and must keep the durable dispatch fence.
@@ -155,6 +170,7 @@
       // No await between the last identity/draft check and the irreversible click.
       dispatched.add(key); // Never click twice in this document, even before the marker appears.
       button.click();
+      globalThis.ChatCmdRenderBridge?.pulse();
       composer.blur();
       return { sent: true };
     } finally { dispatching = false; }
@@ -200,6 +216,7 @@
   }
   chrome.runtime.onMessage.addListener(listener);
   function dispose() {
+    currentJob = null; ownedConversationId = null; setRenderLease(false);
     disposed = true; panel?.remove(); chrome.runtime.onMessage.removeListener(listener);
     window.removeEventListener('pageshow', wake); window.removeEventListener('popstate', wake);
   }
@@ -211,7 +228,10 @@
   // Reconcile with the durable worker after reload, BFCache restore and SPA navigation.
   function wake() {
     if (!isCurrent()) return;
-    if (pageUrl !== location.href) { pageUrl = location.href; currentJob = null; panel?.remove(); panel = null; }
+    if (pageUrl !== location.href) {
+      pageUrl = location.href; currentJob = null; ownedConversationId = null; setRenderLease(false);
+      panel?.remove(); panel = null;
+    }
     void globalThis.ChatCmdRuntime.sendMessage({ type: 'chatcmd-compact-wake' }).catch(() => {});
   }
   window.addEventListener('pageshow', wake);

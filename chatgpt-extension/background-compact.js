@@ -2,6 +2,9 @@
 // Neither a missing tab nor a lost HTTP response is proof that Send did not happen.
 const COMPACT_PREFIX = 'chatcmd-compact-job:';
 const COMPACT_ALARM = 'chatcmd-compact-recovery';
+const COMPACT_TICK_MS = 400;
+const COMPACT_FINISHED_RETENTION_MS = 24 * 60 * 60_000;
+const COMPACT_FINISHED_MAX = 64;
 const compactFlights = new Map();
 const compactJobs = new Map();
 let compactTimer;
@@ -9,6 +12,30 @@ let compactRecovery;
 const compactPath = (id) => `/api/local/chatgpt/compact/${encodeURIComponent(id)}`;
 async function compactRecord(id) { return (await chrome.storage.local.get(`${COMPACT_PREFIX}${id}`))[`${COMPACT_PREFIX}${id}`] || null; }
 async function saveCompactRecord(id, value) { await chrome.storage.local.set({ [`${COMPACT_PREFIX}${id}`]: value }); return value; }
+async function pruneFinishedCompactRecords(records) {
+  const now = Date.now();
+  const updates = {};
+  const finished = [];
+  for (const [key, original] of records) {
+    if (!original?.finished) continue;
+    const storedAt = Number(original.finishedAt);
+    const record = Number.isFinite(storedAt) && storedAt > 0 ? original : { ...original, finishedAt: now };
+    if (record !== original) updates[key] = record;
+    finished.push([key, record]);
+  }
+  if (Object.keys(updates).length) await chrome.storage.local.set(updates);
+  finished.sort((left, right) => Number(right[1].finishedAt) - Number(left[1].finishedAt));
+  const removals = finished.filter(([, record], index) => index >= COMPACT_FINISHED_MAX
+    || now - Number(record.finishedAt) >= COMPACT_FINISHED_RETENTION_MS).map(([key]) => key);
+  if (removals.length) await chrome.storage.local.remove(removals);
+  const removed = new Set(removals);
+  return records.map(([key, record]) => [key, updates[key] || record]).filter(([key]) => !removed.has(key));
+}
+async function syncCompactAlarm(active) {
+  const alarm = await chrome.alarms.get(COMPACT_ALARM);
+  if (active && !alarm) await chrome.alarms.create(COMPACT_ALARM, { periodInMinutes: 0.5 });
+  if (!active && alarm) await chrome.alarms.clear(COMPACT_ALARM);
+}
 async function compactCheckpoint(record, job, patch) {
   const next = await postJson(record.localBaseUrl, `${compactPath(job.id)}/checkpoint`, { expectedRevision: job.revision, ...patch });
   compactJobs.set(job.id, next);
@@ -30,7 +57,7 @@ async function compactDispatch(tabId, job, record, kind, documentToken) {
   const result = await compactSend(tabId, 'dispatch', job, kind, documentToken);
   if (result.sent === false && result.retryable === true && result.documentToken === documentToken) {
     await saveCompactRecord(job.id, { ...record, [field]: 'not-sent' });
-    await compactDetail(record, job, 'Waiting for ChatGPT\'s Send button to become ready. Send has not been clicked; the process will continue automatically.');
+    await compactDetail(record, job, 'Đang chờ nút Gửi của ChatGPT sẵn sàng. Chưa bấm Gửi; sẽ tiếp tục tự động.');
   }
 }
 async function startCompactJob(message, sender) {
@@ -49,6 +76,7 @@ async function startCompactJob(message, sender) {
       initialized: true, initialOpenAllowed: job.phase === 'preparing' });
   }
   compactJobs.set(job.id, job);
+  await syncCompactAlarm(true);
   void runCompactJob(job.id);
   return { jobId: job.id, accepted: true };
 }
@@ -68,7 +96,7 @@ async function runCompactJob(id) {
 function scheduleCompactTick() {
   clearTimeout(compactTimer);
   if ([...compactJobs.values()].some((job) => !ChatCmdCompactProtocol.terminal(job))) {
-    compactTimer = setTimeout(() => { for (const id of compactJobs.keys()) void runCompactJob(id); }, 2000);
+    compactTimer = setTimeout(() => { for (const id of compactJobs.keys()) void runCompactJob(id); }, COMPACT_TICK_MS);
   }
 }
 async function compactTick(id) {
@@ -91,38 +119,38 @@ async function compactTick(id) {
       source = await chrome.tabs.create({ url: job.oldConversationUrl, active: false });
     }
     if (!source?.id) {
-      await compactDetail(record, job, 'Waiting for the previous ChatGPT conversation to reopen. Progress is saved; do not resend the handoff automatically.');
+      await compactDetail(record, job, 'Đang chờ mở lại cuộc trò chuyện ChatGPT cũ. Tiến trình đã lưu; không tự gửi lại handoff.');
       return;
     }
     record = await saveCompactRecord(id, { ...record, sourceChatTabId: source.id, initialOpenAllowed: false });
     const probe = await compactSend(source.id, 'probe', job, 'HANDOFF');
     if (probe.markerFound) {
-      if (probe.superseded) throw new Error('A new message appeared after the handoff request. Do not capture another turn\'s response; cancel and inspect the conversation.');
+      if (probe.superseded) throw new Error('Có tin nhắn mới sau yêu cầu handoff. Không lấy phản hồi của lượt khác; hãy hủy và kiểm tra cuộc trò chuyện.');
       if (probe.handoffText) {
         job = await compactCheckpoint(record, job, { phase: 'saving_handoff', handoffText: probe.handoffText, detail: null });
+      } else {
+        await compactDetail(record, job, probe.threadError
+          ? 'ChatGPT chưa hoàn tất handoff. Mở tab để kiểm tra lỗi; nội dung và task cũ được giữ nguyên.'
+          : 'Đang chờ ChatGPT viết xong handoff của đúng lượt này. Có thể đóng tab và mở lại sau.');
         return;
       }
-      await compactDetail(record, job, probe.threadError
-        ? 'ChatGPT has not completed the handoff. Open the tab to inspect the error; the previous content and task are preserved.'
-        : 'Waiting for ChatGPT to finish the handoff for this exact turn. You may close the tab and reopen it later.');
+    } else {
+      const maySend = (job.phase === 'preparing' && record.sourceSend === 'not-attempted') || record.sourceSend === 'not-sent';
+      if (!maySend) {
+        await compactDetail(record, job, 'Đang đối chiếu lần gửi handoff đã ghi nhận. Không tự gửi lần hai khi chưa rõ kết quả; mở lại tab hoặc hủy để kiểm tra.');
+        return;
+      }
+      const ready = await compactSend(source.id, 'prepare', job, 'HANDOFF', probe.documentToken);
+      if (!ready.ready) { await compactDetail(record, job, 'Đang chuẩn bị: dừng phản hồi hiện tại và chờ ô nhập ChatGPT sẵn sàng.'); return; }
+      // The server transition is also the cross-document source dispatch permit.
+      job = await compactCheckpoint(record, job, { phase: 'writing_handoff', detail: null });
+      await compactDispatch(source.id, job, record, 'HANDOFF', probe.documentToken);
       return;
     }
-    const maySend = (job.phase === 'preparing' && record.sourceSend === 'not-attempted') || record.sourceSend === 'not-sent';
-    if (!maySend) {
-      await compactDetail(record, job, 'Reconciling the recorded handoff send. Do not send it twice while the result is unclear; reopen the tab or cancel to inspect.');
-      return;
-    }
-    const ready = await compactSend(source.id, 'prepare', job, 'HANDOFF', probe.documentToken);
-    if (!ready.ready) { await compactDetail(record, job, 'Preparing: stopping the current response and waiting for the ChatGPT composer to become ready.'); return; }
-    // The server transition is also the cross-document source dispatch permit.
-    job = await compactCheckpoint(record, job, { phase: 'writing_handoff', detail: null });
-    await compactDispatch(source.id, job, record, 'HANDOFF', probe.documentToken);
-    return;
   }
   if (job.phase === 'saving_handoff') {
-    if (!job.handoffText) throw new Error('The handoff has not been durably saved; do not open a new chat.');
-    await compactCheckpoint(record, job, { phase: 'opening_new_chat', detail: null });
-    return;
+    if (!job.handoffText) throw new Error('Handoff chưa được lưu bền vững; không mở chat mới.');
+    job = await compactCheckpoint(record, job, { phase: 'opening_new_chat', detail: null });
   }
   if (job.phase === 'opening_new_chat') await compactDestination(job, record, tabs);
 }
@@ -130,7 +158,8 @@ async function recoverCompactJobs() {
   if (compactRecovery) return compactRecovery;
   compactRecovery = (async () => {
     const stored = await chrome.storage.local.get(null);
-    const records = Object.entries(stored).filter(([key]) => key.startsWith(COMPACT_PREFIX));
+    let records = Object.entries(stored).filter(([key]) => key.startsWith(COMPACT_PREFIX));
+    records = await pruneFinishedCompactRecords(records);
     const origins = new Set(records.map(([, record]) => record.localBaseUrl));
     origins.add(approvalBaseUrl);
     for (const origin of origins) {
@@ -151,8 +180,9 @@ async function recoverCompactJobs() {
       if (!record.finished) void runCompactJob(key.slice(COMPACT_PREFIX.length));
     }
     for (const job of compactJobs.values()) if (!ChatCmdCompactProtocol.terminal(job)) void runCompactJob(job.id);
-    const alarm = await chrome.alarms.get(COMPACT_ALARM);
-    if (!alarm) await chrome.alarms.create(COMPACT_ALARM, { periodInMinutes: 1 });
+    const active = records.some(([, record]) => !record.finished)
+      || [...compactJobs.values()].some((job) => !ChatCmdCompactProtocol.terminal(job));
+    await syncCompactAlarm(active);
   })().finally(() => { compactRecovery = null; });
   return compactRecovery;
 }

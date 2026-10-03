@@ -24,55 +24,50 @@ async function sendToChatGpt(tabId, payload, options = {}) {
     try {
       const health = await chrome.tabs.sendMessage(tabId, { type: 'chatcmd-content-alive', kind: 'chatgpt' });
       if (health?.ok && (health.captureProtocol !== 2 || health.renderProtocol !== 1 || !health.captureReady)) {
-        throw new Error('The ChatGPT tab is using an old content script or is missing the capture module. Reload extension 0.1.6 and reload the ChatGPT tab.');
-      }
-      const targetEffort = String(payload.effort || 'inherit');
-      if (health?.ok && targetEffort !== 'inherit' && health.reasoningEffort === targetEffort) {
-        payload = { ...payload, effort: 'inherit' };
-        await logExtension('info', 'background', `ChatGPT reasoning effort already matches ${targetEffort}; leaving the web UI unchanged.`);
+        throw new Error('Tab ChatGPT đang dùng content script cũ hoặc thiếu bộ capture. Hãy reload extension 0.1.6 và tải lại tab ChatGPT.');
       }
     } catch (error) { if (!isMissingReceiverError(error)) throw error; }
   }
   let lastError;
   let reinjected = false;
   const quiet = options.quiet === true;
-  if (!quiet) await logExtension('info', 'background', `Sending ${payload?.type || 'message'} to tab ${tabId}.`);
+  if (!quiet) await logExtension('info', 'background', `Gửi ${payload?.type || 'message'} tới tab ${tabId}.`);
   for (let attempt = 0; attempt < 20; attempt++) {
     try {
       const response = await chrome.tabs.sendMessage(tabId, payload);
       if (response?.ok) {
-        if (!quiet) await logExtension('info', 'background', `Tab ${tabId} responded successfully on attempt ${attempt + 1}.`);
+        if (!quiet) await logExtension('info', 'background', `Tab ${tabId} phản hồi thành công ở lần ${attempt + 1}.`);
         return response;
       }
-      lastError = new Error(response?.error || 'The ChatGPT content script could not complete the request.');
-      await logExtension('error', 'content-chatgpt', `Tab ${tabId} received the request but returned an error: ${errorMessage(lastError)}`);
+      lastError = new Error(response?.error || 'ChatGPT content script không thể hoàn tất yêu cầu.');
+      await logExtension('error', 'content-chatgpt', `Tab ${tabId} đã nhận yêu cầu nhưng trả lỗi: ${errorMessage(lastError)}`);
       throw lastError;
     } catch (error) {
       lastError = error;
       if (!isMissingReceiverError(error)) {
-        await logExtension('error', 'background', `Tab ${tabId} returned an actual error: ${errorMessage(error)}`);
+        await logExtension('error', 'background', `Tab ${tabId} trả lỗi thực tế: ${errorMessage(error)}`);
         throw error;
       }
-      await logExtension('warn', 'background', `No receiver in tab ${tabId}, attempt ${attempt + 1}: ${errorMessage(error)}`);
+      await logExtension('warn', 'background', `Không có receiver ở tab ${tabId}, lần ${attempt + 1}: ${errorMessage(error)}`);
       if (!reinjected) {
         reinjected = true;
         try {
-          await logExtension('info', 'background', `Reinjecting ChatGPT content scripts into tab ${tabId}.`);
+          await logExtension('info', 'background', `Inject lại các ChatGPT content scripts vào tab ${tabId}.`);
           await injectChatGptScripts(tabId);
-          await logExtension('info', 'background', `Injected ChatGPT content scripts into tab ${tabId} successfully.`);
+          await logExtension('info', 'background', `Inject ChatGPT content scripts vào tab ${tabId} thành công.`);
           await delay(150);
           continue;
         } catch (injectError) {
           lastError = injectError;
-          await logExtension('error', 'background', `Failed to inject tab ${tabId}: ${errorMessage(injectError)}`);
+          await logExtension('error', 'background', `Inject tab ${tabId} thất bại: ${errorMessage(injectError)}`);
           throw injectError;
         }
       }
     }
     await delay(300);
   }
-  await logExtension('error', 'background', `Could not send to tab ${tabId}: ${errorMessage(lastError)}`);
-  throw lastError || new Error('Could not connect to the content script on chatgpt.com.');
+  await logExtension('error', 'background', `Không thể gửi tới tab ${tabId}: ${errorMessage(lastError)}`);
+  throw lastError || new Error('Không thể kết nối content script trên chatgpt.com.');
 }
 
 async function logExtension(level, source, message) {
@@ -96,7 +91,7 @@ async function waitForTab(tabId) {
   const current = await chrome.tabs.get(tabId);
   if (current.status === 'complete') return;
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error('ChatGPT took too long to load the page.')), 20_000);
+    const timer = setTimeout(() => finish(new Error('ChatGPT tải trang quá lâu.')), 20_000);
     const listener = (changedId, info) => { if (changedId === tabId && info.status === 'complete') finish(); };
     const finish = (error) => {
       clearTimeout(timer); chrome.tabs.onUpdated.removeListener(listener);
@@ -124,7 +119,7 @@ async function waitForChatGptReady(tabId) {
     }
     await delay(200);
   }
-  throw lastError || new Error('The ChatGPT composer was not ready after opening the project page.');
+  throw lastError || new Error('Ô nhập ChatGPT chưa sẵn sàng sau khi mở trang dự án.');
 }
 
 async function postJson(baseUrl, path, body) {
@@ -135,7 +130,7 @@ async function postJson(baseUrl, path, body) {
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    let message = `ChatCMD local API returned error ${response.status}.`;
+    let message = `ChatCMD local API trả lỗi ${response.status}.`;
     try { message = (await response.json()).detail || message; } catch { /* non-json error */ }
     throw new Error(message);
   }
@@ -149,7 +144,7 @@ async function getJson(baseUrl, path) {
     headers: { 'X-ChatCmdClient': 'chatgpt-extension' },
   });
   if (!response.ok) {
-    let message = `ChatCMD local API returned error ${response.status}.`;
+    let message = `ChatCMD local API trả lỗi ${response.status}.`;
     try { message = (await response.json()).detail || message; } catch { /* non-json error */ }
     throw new Error(message);
   }
@@ -175,10 +170,20 @@ async function bridgeRequestState(requestId, tabId) {
 }
 
 async function handleProgress(message, tabId) {
-  if (!message.requestId) throw new Error('ChatGPT progress is missing a request ID.');
-  const context = await requestContext(message.requestId);
-  if (!context) throw new Error('ChatCMD request context was not found.');
-  if (tabId && context.tabId !== tabId) throw new Error('ChatGPT progress came from a mismatched tab.');
+  if (!message.requestId) throw new Error('ChatGPT progress thiếu request ID.');
+  let context = await requestContext(message.requestId);
+  if (!context && message.stage === 'observation' && tabId) {
+    const binding = (await conversationBindings())[conversationKey(message.conversationId)];
+    if (binding?.tabId === tabId && binding.requestId === message.requestId && binding.localBaseUrl) {
+      const request = await getJson(binding.localBaseUrl, `/api/local/chatgpt/requests/${encodeURIComponent(message.requestId)}`);
+      if (request?.id === message.requestId && request.conversationId === message.conversationId) {
+        context = { tabId, localBaseUrl: binding.localBaseUrl, conversationUrl: request.conversationUrl };
+        await chrome.storage.session.set({ [requestKey(message.requestId)]: context });
+      }
+    }
+  }
+  if (!context) throw new Error('Không tìm thấy ChatCMD request context.');
+  if (tabId && context.tabId !== tabId) throw new Error('ChatGPT progress đến từ tab không khớp.');
   if (message.stage === 'observation') {
     if (!tabId || context.tabId !== tabId) throw new Error('Observation sender does not own this request.');
     if (context.mode === 'subagent') return { accepted: false };
@@ -191,7 +196,7 @@ async function handleProgress(message, tabId) {
   }
   const identity = await preferredConversationIdentity(context.tabId, message.conversationId, message.conversationUrl);
   if (message.stage === 'retrying') {
-    await logExtension('warn', 'recovery', `Automatically resending request ${message.requestId}, attempt ${Number(message.retryCount) || 1}, reason ${message.reason || 'send_ready'}.`);
+    await logExtension('warn', 'recovery', `Tự gửi lại request ${message.requestId}, lần ${Number(message.retryCount) || 1}, lý do ${message.reason || 'send_ready'}.`);
     return { stage: 'retrying' };
   }
   if (identity.conversationId && context.tabId) {
@@ -221,18 +226,25 @@ async function handleProgress(message, tabId) {
         conversationId: identity.conversationId,
         conversationUrl: identity.conversationUrl,
         assistantContent: message.assistantContent,
+        completionEvidence: message.completionEvidence,
         errorMessage: message.errorMessage,
       });
-      if (result?.accepted !== true && ['pending', 'running'].includes(result?.status)) {
-        return { stage: message.stage, completed: false, browserCompleted: false, hasFinalResponse: false, status: result.status, reason: result.reason };
+      const terminal = ['completed', 'failed', 'stopped', 'interrupted', 'timedOut'].includes(result?.status);
+      const sameAttempt = result?.attempt === undefined || Number(result.attempt) === Number(context.attempt);
+      const acknowledged = sameAttempt && result?.reason !== 'stale_attempt'
+        && (result?.accepted === true || terminal);
+      if (!acknowledged) {
+        return { stage: message.stage, completed: false, browserCompleted: false, hasFinalResponse: false, status: result?.status, reason: result?.reason };
       }
-      await releaseRequest(message.requestId);
-      await chrome.storage.session.remove(`${SUBAGENT_PREFIX}${context.subagentId}`);
-      if (context.tabId) setTimeout(() => void safeTab(context.tabId).then((tab) => tab?.id && chrome.tabs.remove(tab.id).catch(() => undefined)), 100);
+      // Delay closing until the content script receives the acknowledgement. The
+      // existing attempt-fenced cleanup must not remove a newer retry's tab.
+      setTimeout(() => void closeSubagentRequest(context.subagentId, context.attempt).catch(() => undefined), 100);
       const completed = result?.completed === true || result?.status === 'completed';
-      return { stage: message.stage, completed, browserCompleted: completed, hasFinalResponse: completed, retryScheduled: result?.retryScheduled === true, status: result?.status, reason: result?.reason };
+      return { stage: message.stage, completed, terminalAcknowledged: true, browserCompleted: completed,
+        hasFinalResponse: completed, retryScheduled: result?.retryScheduled === true, status: result?.status,
+        reason: result?.reason, completionSource: result?.completionSource };
     }
-    throw new Error(`Unsupported ChatGPT sub-agent progress stage: ${message.stage || 'missing'}.`);
+    throw new Error(`ChatGPT sub-agent progress stage không được hỗ trợ: ${message.stage || 'missing'}.`);
   }
   if (message.stage === 'started') {
     await postJson(context.localBaseUrl, `/api/local/chatgpt/bridge/${encodeURIComponent(message.requestId)}/started`, {
@@ -248,6 +260,7 @@ async function handleProgress(message, tabId) {
       assistantContent: message.assistantContent,
     });
     await releaseRequest(message.requestId);
+    await forgetRecoveryRequest(message.requestId);
     return { stage: 'browser-completed', browserCompleted: result?.status === 'completed', hasFinalResponse: result?.hasFinalResponse === true };
   }
   if (message.stage === 'result') {
@@ -257,9 +270,10 @@ async function handleProgress(message, tabId) {
       errorMessage: message.errorMessage,
     });
     await releaseRequest(message.requestId);
+    await forgetRecoveryRequest(message.requestId);
     return { stage: 'result' };
   }
-  throw new Error(`Unsupported ChatGPT progress stage: ${message.stage || 'missing'}.`);
+  throw new Error(`ChatGPT progress stage không được hỗ trợ: ${message.stage || 'missing'}.`);
 }
 
 async function requestContext(requestId) {
@@ -271,12 +285,12 @@ async function requestContext(requestId) {
 function requestKey(requestId) { return `${REQUEST_PREFIX}${requestId}`; }
 function conversationKey(conversationId) { return `${CONVERSATION_PREFIX}${conversationId}`; }
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-function errorMessage(error) { return error instanceof Error ? error.message : String(error || 'ChatGPT bridge error.'); }
+function errorMessage(error) { return error instanceof Error ? error.message : String(error || 'Lỗi ChatGPT bridge.'); }
 
 async function conversationTarget(value) {
   if (!value) return CHATGPT_HOME;
   const url = new URL(value);
-  if (url.origin !== 'https://chatgpt.com') throw new Error('Conversation URL does not belong to chatgpt.com.');
+  if (url.origin !== 'https://chatgpt.com') throw new Error('Conversation URL không thuộc chatgpt.com.');
   const conversationId = conversationIdFromUrl(url.href);
   if (conversationId && isProvisionalConversationId(conversationId)) {
     const key = `${CONVERSATION_ALIAS_PREFIX}${conversationId}`;
@@ -307,7 +321,7 @@ function normalizeNewConversationUrl(value) {
   if (!value) return CHATGPT_HOME;
   const url = new URL(value);
   if (url.origin !== 'https://chatgpt.com' || !/^\/g\/g-p-[A-Za-z0-9_-]+\/project$/.test(url.pathname) || url.search || url.hash) {
-    throw new Error('ChatGPT project link must match https://chatgpt.com/g/g-p-{ID}/project.');
+    throw new Error('Link dự án ChatGPT không đúng định dạng https://chatgpt.com/g/g-p-{MÃ}/project.');
   }
   return `${url.origin}${url.pathname}`;
 }
@@ -326,11 +340,11 @@ function isChatGptUrl(value) {
 }
 
 function isProvisionalConversationId(value) {
-  return /^WEB:/i.test(String(value || ''));
+  return /^(?:WEB:|local-chatgpt:)/i.test(String(value || ''));
 }
 
 function localOrigin(value) {
   const url = new URL(value);
-  if (url.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(url.hostname)) throw new Error('ChatCMD bridge only allows local HTTP origins.');
+  if (url.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(url.hostname)) throw new Error('ChatCMD bridge chỉ cho phép local HTTP origin.');
   return url.origin;
 }

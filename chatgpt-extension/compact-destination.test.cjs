@@ -31,7 +31,63 @@ test('destination recovery uses the durable resume marker, not a recycled tab id
   };
   const found = await env.api.locateCompactDestination(value, env.record(), tabs);
   assert.equal(found.id, 50);
-  assert.deepEqual(env.shared.calls.map((call) => call.tabId), [41, 50]);
+  assert.deepEqual(env.shared.calls.filter((call) => call.type === 'chatcmd-compact-locate')
+    .map((call) => call.tabId), [41, 42, 50]);
+});
+
+test('known destination identity falls back to the exact RESUME marker when Chrome URL is stale', async (t) => {
+  const env = await destinationWorker(t, {
+    newConversationId: 'destination-owned', newConversationUrl: 'https://chatgpt.com/c/destination-owned',
+  }, { destinationTabId: 9, destinationOpened: true, destinationSend: 'dispatched-unresolved' });
+  const tabs = [{ id: 9, url: 'https://chatgpt.com/' }];
+  env.shared.route = async (id, message) => {
+    assert.equal(message.type, 'chatcmd-compact-locate');
+    assert.equal(message.kind, 'RESUME');
+    return { ok: true, markerFound: id === 9 };
+  };
+  const found = await env.api.locateCompactDestination(env.serverJob(), env.record(), tabs);
+  assert.equal(found.id, 9);
+});
+
+test('opening_new_chat completes when Chrome still reports home for the already attached destination', async (t) => {
+  const env = await destinationWorker(t, {
+    newConversationId: 'destination-owned', newConversationUrl: 'https://chatgpt.com/c/destination-owned',
+  }, { destinationTabId: 9, destinationOpened: true, destinationSend: 'dispatched-unresolved' });
+  env.shared.tabs = [{ id: 9, url: 'https://chatgpt.com/' }];
+  const probe = receiver({ markerFound: true, generating: false, conversationId: 'destination-owned',
+    conversationUrl: 'https://chatgpt.com/c/destination-owned' });
+  env.shared.route = (id, message) => message.type === 'chatcmd-compact-locate'
+    ? { ok: true, markerFound: id === 9 } : probe(id, message);
+  await env.tick();
+  assert.equal(env.serverJob().phase, 'completed');
+  assert.equal(env.serverJob().taskId, job().taskId);
+  assert.equal(env.shared.creates.length, 0);
+  assert.equal(env.sends().length, 0);
+});
+
+test('lost destination tab id still recovers an open stale-url tab by exact RESUME marker', async (t) => {
+  const env = await destinationWorker(t, {}, {
+    destinationOpened: true, destinationSend: 'dispatched-unresolved', destinationTabId: undefined,
+  });
+  env.shared.tabs = [
+    { id: 7, url: env.serverJob().oldConversationUrl },
+    { id: 40, url: 'https://chatgpt.com/' },
+    { id: 50, url: 'https://chatgpt.com/g/g-p-p/project' },
+  ];
+  const ownedProbe = receiver({ markerFound: true, generating: false, conversationId: 'destination-owned',
+    conversationUrl: 'https://chatgpt.com/c/destination-owned' });
+  env.shared.route = (id, message) => {
+    if (message.type === 'chatcmd-compact-locate') return { ok: true, markerFound: id === 50 };
+    return ownedProbe(id, message);
+  };
+
+  await env.tick();
+
+  assert.equal(env.serverJob().phase, 'completed');
+  assert.equal(env.serverJob().newConversationId, 'destination-owned');
+  assert.equal(env.record().destinationTabId, 50);
+  assert.equal(env.shared.creates.length, 0);
+  assert.equal(env.sends().length, 0);
 });
 
 test('unrelated blank tabs are never adopted when persisted destination binding is absent', async (t) => {
@@ -51,7 +107,7 @@ test('destination operation hash must match exactly, not a longer job id prefix'
 test('multiple tagged destinations fail closed before any probe or send', async (t) => {
   const env = await destinationWorker(t);
   const value = env.serverJob();
-  await assert.rejects(env.api.locateCompactDestination(value, env.record(), [tagged(value, 90), tagged(value, 91)]), /Multiple tabs/);
+  await assert.rejects(env.api.locateCompactDestination(value, env.record(), [tagged(value, 90), tagged(value, 91)]), /nhiều tab/);
   assert.equal(env.shared.calls.length, 0);
 });
 
@@ -60,7 +116,7 @@ test('multiple canonical conversations with the resume marker never select an ar
   env.shared.route = async () => ({ ok: true, markerFound: true });
   await assert.rejects(env.api.locateCompactDestination(env.serverJob(), env.record(), [
     { id: 90, url: 'https://chatgpt.com/c/copy-one' }, { id: 91, url: 'https://chatgpt.com/c/copy-two' },
-  ]), /Two conversations/);
+  ]), /Hai cuộc trò chuyện/);
   assert.equal(env.sends().length, 0);
 });
 
@@ -73,7 +129,7 @@ test('closed destination pauses without creating another chat across worker rest
   assert.equal(env.sends().length, 0);
   assert.equal(env.serverJob().phase, 'opening_new_chat');
   assert.equal(env.serverJob().handoffText, BODY);
-  assert.ok(env.serverJob().detail.includes('reopen'));
+  assert.ok(env.serverJob().detail.includes('mở lại'));
 });
 
 test('first destination opening waits for closed source; durable handoff remains intact', async (t) => {
@@ -83,7 +139,7 @@ test('first destination opening waits for closed source; durable handoff remains
   assert.equal(env.shared.creates.length, 0);
   assert.equal(env.sends().length, 0);
   assert.equal(env.serverJob().handoffText, BODY);
-  assert.ok(env.serverJob().detail.includes('previous'));
+  assert.ok(env.serverJob().detail.includes('cũ'));
 });
 
 test('destination opening intent is persisted before create and survives an unknown create result', async (t) => {
@@ -121,7 +177,7 @@ test('lost destination pre-dispatch checkpoint response retries safely with at m
   const env = await destinationWorker(t);
   let fault = true;
   env.shared.afterCheckpoint = async (patch) => {
-    if (fault && !patch.phase && patch.detail?.includes('Transferring')) {
+    if (fault && !patch.phase && patch.detail?.includes('Đang chuyển')) {
       fault = false;
       throw new Error('Pre-dispatch checkpoint response lost');
     }
@@ -168,24 +224,42 @@ test('lost destination identity checkpoint response recovers canonical marker wi
   assert.equal(env.shared.creates.length, 0);
 });
 
-test('completion waits for acknowledgement generation, then binds the same task even with source closed', async (t) => {
-  const env = await destinationWorker(t, { newConversationId: 'destination-owned', newConversationUrl: 'https://chatgpt.com/c/destination-owned' },
-    { destinationOpened: true, destinationSend: 'dispatched-unresolved', destinationTabId: 9 });
+test('manual continuation commits destination binding before bootstrap acknowledgement finishes', async (t) => {
+  const env = await destinationWorker(t, {
+    continueAfterCompact: false,
+    newConversationId: 'destination-owned',
+    newConversationUrl: 'https://chatgpt.com/c/destination-owned',
+  }, { destinationOpened: true, destinationSend: 'dispatched-unresolved', destinationTabId: 9 });
   env.shared.tabs = [{ id: 9, url: 'https://chatgpt.com/c/destination-owned' }];
   env.shared.route = receiver({ markerFound: true, generating: true, conversationId: 'destination-owned',
     conversationUrl: 'https://chatgpt.com/c/destination-owned' });
+
   await env.tick();
-  assert.equal(env.serverJob().phase, 'opening_new_chat');
-  assert.equal(env.shared.effects.filter((entry) => entry.type === 'bind').length, 0);
-  env.shared.route = receiver({ markerFound: true, generating: false, conversationId: 'destination-owned',
-    conversationUrl: 'https://chatgpt.com/c/destination-owned' });
-  await env.tick();
+
   assert.equal(env.serverJob().phase, 'completed');
   assert.equal(env.serverJob().taskId, job().taskId);
   assert.equal(env.record().finished, true);
   const bind = env.shared.effects.find((entry) => entry.type === 'bind');
   assert.deepEqual(bind.args, ['destination-owned', 9, { localBaseUrl: 'http://127.0.0.1:8080', requestId: null }]);
+  assert.equal(env.shared.requests.filter((request) => request.path.endsWith('/resume')).length, 0);
   assert.equal(env.sends().length, 0);
+});
+
+test('automatic continuation still waits for bootstrap acknowledgement generation', async (t) => {
+  const env = await destinationWorker(t, {
+    continueAfterCompact: true,
+    newConversationId: 'destination-owned',
+    newConversationUrl: 'https://chatgpt.com/c/destination-owned',
+  }, { destinationOpened: true, destinationSend: 'dispatched-unresolved', destinationTabId: 9 });
+  env.shared.tabs = [{ id: 9, url: 'https://chatgpt.com/c/destination-owned' }];
+  env.shared.route = receiver({ markerFound: true, generating: true, conversationId: 'destination-owned',
+    conversationUrl: 'https://chatgpt.com/c/destination-owned' });
+
+  await env.tick();
+
+  assert.equal(env.serverJob().phase, 'opening_new_chat');
+  assert.equal(env.shared.effects.filter((entry) => entry.type === 'bind').length, 0);
+  assert.equal(env.shared.requests.filter((request) => request.path.endsWith('/resume')).length, 0);
 });
 
 test('tab navigated to an unrelated conversation is not reused as an empty destination', async (t) => {
@@ -256,18 +330,25 @@ test('completed job with closed destination waits to resume work until that exac
   assert.equal(env.shared.creates.length, 0);
 });
 
-test('provisional conversation id and superseded resume cannot complete task rebinding', async (t) => {
-  for (const observation of [
-    { markerFound: true, conversationId: 'WEB:provisional', conversationUrl: 'https://chatgpt.com/c/WEB:provisional' },
-    { markerFound: true, superseded: true, conversationId: 'destination-owned', conversationUrl: 'https://chatgpt.com/c/destination-owned' },
-  ]) {
-    const env = await destinationWorker(t);
-    env.shared.route = receiver(observation);
-    await assert.rejects(env.tick());
-    assert.equal(env.serverJob().phase, 'opening_new_chat');
-    assert.equal(env.shared.effects.filter((entry) => entry.type === 'bind').length, 0);
-    assert.equal(env.sends().length, 0);
-  }
+test('provisional conversation id cannot complete task rebinding', async (t) => {
+  const env = await destinationWorker(t);
+  env.shared.route = receiver({ markerFound: true, conversationId: 'WEB:provisional',
+    conversationUrl: 'https://chatgpt.com/c/WEB:provisional' });
+  await assert.rejects(env.tick());
+  assert.equal(env.serverJob().phase, 'opening_new_chat');
+  assert.equal(env.shared.effects.filter((entry) => entry.type === 'bind').length, 0);
+  assert.equal(env.sends().length, 0);
+});
+
+test('a user turn after the exact RESUME marker does not deadlock destination attachment', async (t) => {
+  const env = await destinationWorker(t);
+  env.shared.route = receiver({ markerFound: true, superseded: true, generating: false,
+    conversationId: 'destination-owned', conversationUrl: 'https://chatgpt.com/c/destination-owned' });
+  await env.tick();
+  assert.equal(env.serverJob().phase, 'completed');
+  assert.equal(env.serverJob().newConversationId, 'destination-owned');
+  assert.equal(env.serverJob().taskId, job().taskId);
+  assert.equal(env.sends().length, 0);
 });
 
 for (const choice of [false, undefined]) {

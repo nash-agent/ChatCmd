@@ -3,36 +3,47 @@ async function locateCompactDestination(job, record, tabs) {
     try { return new URL(tab.url).hash === `#chatcmd-compact=${encodeURIComponent(job.id)}`; }
     catch { return false; }
   });
-  if (tagged.length > 1) throw new Error('Multiple tabs received the same handoff. Do not auto-select to avoid binding the wrong conversation.');
+  if (tagged.length > 1) throw new Error('Có nhiều tab nhận cùng handoff. Không tự chọn để tránh gắn nhầm cuộc trò chuyện.');
   if (tagged[0]) return tagged[0];
-  if (job.newConversationId) return tabs.find((tab) => conversationIdFromUrl(tab.url || '') === job.newConversationId) || null;
+  if (job.newConversationId) {
+    const canonical = tabs.find((tab) => conversationIdFromUrl(tab.url || '') === job.newConversationId);
+    if (canonical) return canonical;
+  }
   const bound = tabs.find((tab) => tab.id === record.destinationTabId);
-  if (bound && !conversationIdFromUrl(bound.url || '') && isChatGptUrl(bound.url)) return bound;
-  // A browser restart changes tab ids and ChatGPT may remove the hash. The user marker
-  // is durable evidence; a title, latest answer or coincidentally blank tab is not.
+  if (bound && !job.newConversationId && !conversationIdFromUrl(bound.url || '') && isChatGptUrl(bound.url)) return bound;
+  // Chrome's tab URL can lag behind ChatGPT's SPA navigation, and a browser restart can
+  // also change tab ids after the operation hash is removed. The exact RESUME user marker
+  // is durable ownership evidence, so use it even when the browser still reports a home/
+  // project URL or when a known canonical id is temporarily absent from chrome.tabs.query.
   const matches = [];
   for (const tab of tabs) {
-    if (!tab.id || !conversationIdFromUrl(tab.url || '') || sameConversationUrl(tab.url, job.oldConversationUrl)) continue;
+    const conversationId = conversationIdFromUrl(tab.url || '');
+    const mayBeStaleDestination = Boolean(job.newConversationId || tab.id === record.destinationTabId
+      || record.destinationOpened === true);
+    if (!tab.id || !isChatGptUrl(tab.url) || sameConversationUrl(tab.url, job.oldConversationUrl)
+      || (!conversationId && !mayBeStaleDestination)) continue;
     try {
-      const found = await chrome.tabs.sendMessage(tab.id, { type: 'chatcmd-compact-locate', job, kind: 'RESUME' });
+      // Discovery needs the same receiver health/reinjection path as probe/dispatch.
+      // A missing listener after reload is not evidence that the destination was closed.
+      const found = await compactSend(tab.id, 'locate', job, 'RESUME');
       if (found?.ok && found.markerFound) matches.push(tab);
     } catch { /* an unrelated or not-yet-loaded document does not prove ownership */ }
   }
-  if (matches.length > 1) throw new Error('Two conversations contain the same handoff; inspect them manually before transferring the task.');
+  if (matches.length > 1) throw new Error('Hai cuộc trò chuyện chứa cùng handoff; cần kiểm tra thủ công trước khi chuyển task.');
   return matches[0] || null;
 }
 async function compactDestination(job, record, tabs) {
-  if (!job.handoffText) throw new Error('No saved handoff is available. Do not open an empty conversation.');
+  if (!job.handoffText) throw new Error('Chưa có bản handoff đã lưu. Không mở cuộc trò chuyện rỗng.');
   let destination = await locateCompactDestination(job, record, tabs);
   if (!destination?.id) {
     if (record.destinationOpened || record.destinationSend === 'dispatched-unresolved' || record.destinationSend === 'unknown') {
-      await compactDetail(record, job, 'Waiting for the newly created ChatGPT tab to reopen. Do not create a second chat; restore the closed tab or open the chat containing the handoff message.');
+      await compactDetail(record, job, 'Đang chờ mở lại tab ChatGPT mới đã tạo. Không tạo chat thứ hai; hãy khôi phục tab đã đóng hoặc mở chat có tin nhắn handoff.');
       return;
     }
     // Do not resurrect a tab the user just closed. A loaded source is required for
     // the first opening, while an existing destination can finish without the source.
     if (!tabs.some((tab) => conversationIdFromUrl(tab.url || '') === job.oldConversationId)) {
-      await compactDetail(record, job, 'The handoff is safely saved. Reopen the previous ChatGPT conversation to continue opening the new conversation.');
+      await compactDetail(record, job, 'Handoff đã lưu an toàn. Mở lại ChatGPT cũ để tiếp tục mở cuộc trò chuyện mới.');
       return;
     }
     record = await saveCompactRecord(job.id, { ...record, destinationOpened: true,
@@ -44,28 +55,39 @@ async function compactDestination(job, record, tabs) {
   record = await saveCompactRecord(job.id, { ...record, destinationTabId: destination.id, destinationOpened: true });
   const probe = await compactSend(destination.id, 'probe', job, 'RESUME');
   if (probe.markerFound && probe.conversationId && !isProvisionalConversationId(probe.conversationId)) {
-    if (probe.superseded) throw new Error('The new chat received additional content before task transfer. Inspect the tab before continuing.');
-    // First publish the recoverable destination URL, then wait for the bootstrap
-    // acknowledgement to finish. Only the final DB transaction changes task identity.
+    // A later user turn does not invalidate the destination. It is the normal race when the
+    // user continues immediately after ChatGPT acknowledges RESUME but before the worker's
+    // final checkpoint. The exact operation marker still proves this conversation owns the
+    // handoff; RuntimeHost separately prevents local tools from running until attachment.
+    // Publish the recoverable destination identity first, then immediately re-probe the
+    // same tab instead of sleeping for another scheduler tick before the final commit.
+    let confirmed = probe;
     if (job.newConversationId !== probe.conversationId) {
-      await compactCheckpoint(record, job, { newConversationId: probe.conversationId, newConversationUrl: probe.conversationUrl, detail: null });
-      return;
+      job = await compactCheckpoint(record, job, { newConversationId: probe.conversationId,
+        newConversationUrl: probe.conversationUrl, detail: null });
+      confirmed = await compactSend(destination.id, 'probe', job, 'RESUME');
     }
-    if (probe.generating) return;
-    job = await compactCheckpoint(record, job, { phase: 'completed', newConversationId: probe.conversationId,
-      newConversationUrl: probe.conversationUrl, detail: null });
+    // The exact RESUME marker plus a real canonical conversation identity is enough to
+    // attach the default/manual flow. Waiting for the acknowledgement to stop generating
+    // leaves the task fenced even though the destination is already durably identified.
+    // Auto-continue still waits so its working request cannot race the bootstrap answer.
+    if (!confirmed.markerFound || confirmed.conversationId !== job.newConversationId
+      || isProvisionalConversationId(confirmed.conversationId)
+      || (confirmed.generating && job.continueAfterCompact === true)) return;
+    job = await compactCheckpoint(record, job, { phase: 'completed', newConversationId: confirmed.conversationId,
+      newConversationUrl: confirmed.conversationUrl, detail: null });
     await finishCompactBrowser(job, record);
     return;
   }
   if (!['not-attempted', 'not-sent'].includes(record.destinationSend)) {
-    await compactDetail(record, job, 'Reconciling the handoff send to the new chat. Do not send it twice while the result is unclear; restore the correct tab to continue.');
+    await compactDetail(record, job, 'Đang đối chiếu lần gửi handoff vào chat mới. Không gửi lần hai khi kết quả chưa rõ; khôi phục đúng tab để tiếp tục.');
     return;
   }
-  if (probe.conversationId || probe.generating) throw new Error('The destination tab is no longer an empty conversation. Do not overwrite it or send the handoff to another chat.');
+  if (probe.conversationId || probe.generating) throw new Error('Tab đích không còn là cuộc trò chuyện trống. Không ghi đè hoặc gửi handoff vào chat khác.');
   const ready = await compactSend(destination.id, 'prepare', job, 'RESUME', probe.documentToken);
   if (!ready.ready) return;
   // Recheck the DB immediately before the irreversible dispatch (cancel/stale guard).
-  job = await compactCheckpoint(record, job, { detail: 'Transferring the saved handoff to the new conversation.' });
+  job = await compactCheckpoint(record, job, { detail: 'Đang chuyển bản handoff đã lưu sang cuộc trò chuyện mới.' });
   await compactDispatch(destination.id, job, record, 'RESUME', probe.documentToken);
 }
 async function finishCompactBrowser(job, record) {
@@ -87,13 +109,13 @@ async function finishCompactBrowser(job, record) {
     catch (error) {
       closeError = error;
       record = await compactRecord(job.id) || record;
-      await logExtension('warn', 'compact', `Transferred the handoff but could not close the source tab: ${errorMessage(error)}`);
+      await logExtension('warn', 'compact', `Đã chuyển handoff nhưng chưa đóng được tab nguồn: ${errorMessage(error)}`);
     }
     // A transient tab-close failure must not prevent an explicitly requested continuation.
     if (job.continueAfterCompact === true) record = await resumeCompactWork(job, record);
     if (closeError) throw closeError; // Keep cleanup unfinished for durable recovery, not a new compact.
   }
-  await saveCompactRecord(job.id, { ...record, finished: true });
+  await saveCompactRecord(job.id, { ...record, finished: true, finishedAt: Date.now() });
   compactJobs.delete(job.id);
 }
 
@@ -116,7 +138,7 @@ async function retireCompactSource(job, record, destination) {
   if (!source) return finish('closed', 'already-closed');
   if (!compactTabMatches(source, job.oldConversationId)) return finish('skipped', 'source-navigated');
   if (!compactTabMatches(await safeTab(destination.id), job.newConversationId)) {
-    throw new Error('The new ChatGPT tab is not ready; keep the source tab for recovery.');
+    throw new Error('ChatGPT mới chưa sẵn sàng; giữ tab nguồn để khôi phục.');
   }
   const check = await compactSend(tabId, 'close-check', job, 'HANDOFF');
   if (check.safeToClose !== true || !check.documentToken || !check.userMessageId
@@ -137,7 +159,7 @@ async function retireCompactSource(job, record, destination) {
   if (!source) return finish('closed', 'already-closed');
   if (!compactTabMatches(source, job.oldConversationId)) return finish('skipped', 'source-navigated');
   if (!compactTabMatches(await safeTab(destination.id), job.newConversationId)) {
-    throw new Error('The new ChatGPT tab changed or closed; the source tab remains open.');
+    throw new Error('Tab ChatGPT mới đã đổi hoặc đóng; chưa đóng tab nguồn.');
   }
   const finalCheck = await compactSend(tabId, 'close-check', job, 'HANDOFF', check.documentToken);
   if (finalCheck.safeToClose !== true || finalCheck.documentToken !== check.documentToken

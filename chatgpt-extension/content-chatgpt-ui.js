@@ -8,13 +8,13 @@
     const button = document.createElement('button');
     button.id = id;
     button.type = 'button';
-    button.setAttribute('aria-label', 'Return to ChatCMD');
-    button.title = 'Return to ChatCMD';
+    button.setAttribute('aria-label', 'Quay lại ChatCMD');
+    button.title = 'Quay lại ChatCMD';
     button.innerHTML = `
       <span data-chatcmd-return-icon aria-hidden="true">↩</span>
       <span data-chatcmd-return-copy>
-        <strong>Return to ChatCMD</strong>
-        <small>Click to return</small>
+        <strong>Quay lại ChatCMD</strong>
+        <small>Bấm để trở về</small>
       </span>
       <i data-chatcmd-return-dot aria-hidden="true"></i>
     `;
@@ -77,11 +77,11 @@
     button.addEventListener('click', () => {
       button.disabled = true;
       button.style.opacity = '.7';
-      copy.querySelector('small').textContent = 'Returning…';
+      copy.querySelector('small').textContent = 'Đang quay lại…';
       globalThis.ChatCmdRuntime.sendMessage({ type: 'chatcmd-return-to-source' }, () => {
         button.disabled = false;
         button.style.opacity = '';
-        copy.querySelector('small').textContent = 'Click to return';
+        copy.querySelector('small').textContent = 'Bấm để trở về';
       });
     });
 
@@ -107,10 +107,10 @@
         </svg>
       </span>
       <span data-chatcmd-warning-copy>
-        <strong>Do not interact with this ChatGPT tab</strong>
-        <span>This ChatGPT tab is being controlled by ChatCMD. Do not interact with this browser tab while using it through ChatCMD, because doing so may cause errors. Close this tab only when you are no longer using it through ChatCMD.</span>
+        <strong>Đừng thao tác với tab ChatGPT này</strong>
+        <span>Tab ChatGPT này đang được xử lý bởi ChatCMD, xin đừng thao tác trên tab trình duyệt này khi bạn vẫn đang sử dụng trên ChatCMD vì có thể gây lỗi cho bên ChatCMD. Chỉ đóng tab này nếu như bạn không còn sử dụng bên ChatCMD nữa.</span>
       </span>
-      <span data-chatcmd-warning-state><i></i> ChatCMD is using this tab</span>
+      <span data-chatcmd-warning-state><i></i> ChatCMD đang sử dụng</span>
     `;
     Object.assign(banner.style, {
       position: 'fixed', left: '24px', top: '24px', zIndex: '2147483646',
