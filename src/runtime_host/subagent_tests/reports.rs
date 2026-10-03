@@ -3,7 +3,7 @@ use super::*;
 #[path = "report_edge_cases.rs"]
 mod edge_cases;
 
-fn begin_child<'a>(
+pub(super) fn begin_child<'a>(
     host: &'a RuntimeHost,
     parent: &'a OperationContext,
     registration: &'a Value,
@@ -29,7 +29,7 @@ fn begin_child<'a>(
     })
 }
 
-fn finish<'a>(
+pub(super) fn finish<'a>(
     host: &'a RuntimeHost,
     child: &'a OperationContext,
     text: &'a str,

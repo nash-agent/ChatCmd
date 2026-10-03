@@ -24,6 +24,7 @@ const MAX_SUBAGENT_MAX_RUNTIME_MS: i64 = 86_400_000;
 const SUBAGENT_WATCHDOG_BATCH: i64 = 100;
 
 mod coordination;
+mod correlation;
 mod grant_bootstrap;
 mod lifecycle;
 mod registration;
@@ -166,6 +167,8 @@ fn subagent_id_for_registration(
 }
 
 fn subagent_registration_value(
+    parent_task_id: &str,
+    parent_turn_id: &str,
     subagent_id: &str,
     child_task_id: &str,
     name: &str,
@@ -174,13 +177,16 @@ fn subagent_registration_value(
 ) -> Value {
     json!({
         "subagentId": subagent_id,
-        "taskId": child_task_id,
+        "taskId": parent_task_id,
+        "turnId": parent_turn_id,
+        "parentTaskId": parent_task_id,
+        "parentTurnId": parent_turn_id,
         "childTaskId": child_task_id,
         "name": name,
         "status": status,
         "duplicate": duplicate,
         "delegationMarker": format!("{SUBAGENT_MARKER_PREFIX}{subagent_id}"),
-        "instruction": "Include delegationMarker verbatim in the child agent request. The child must preserve it in its first agent_user_message call."
+        "instruction": "Include delegationMarker verbatim in the child agent request. The child must preserve it in its first agent_user_message call. For agent_subagent_wait, reuse parentTaskId as taskId and parentTurnId as turnId; childTaskId belongs only to the child."
     })
 }
 

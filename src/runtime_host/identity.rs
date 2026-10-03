@@ -13,10 +13,21 @@ use chatcmd_core::{
 use chatcmd_runtime::{OperationContext, RuntimeError, RuntimeResult};
 
 impl RuntimeHost {
+    #[cfg(test)]
     pub(super) async fn ensure_call_identity(
         &self,
         context: &mut OperationContext,
         first_user_message: Option<&str>,
+    ) -> RuntimeResult<()> {
+        self.ensure_call_identity_for_call(context, first_user_message, None)
+            .await
+    }
+
+    pub(super) async fn ensure_call_identity_for_call(
+        &self,
+        context: &mut OperationContext,
+        first_user_message: Option<&str>,
+        selected_subagent_id: Option<&str>,
     ) -> RuntimeResult<()> {
         let conversation_scope = context.conversation_scope_id.clone();
         let provider_scope = conversation_scope
@@ -143,13 +154,32 @@ impl RuntimeHost {
         {
             self.validate_provider_scope_task(context, &task).await?;
         }
-        let turn = context.turn_id.clone().unwrap_or_else(|| {
-            safe_id(
-                "turn",
+        let inferred_turn = if context.turn_id.is_none()
+            && matches!(
+                context.tool_name.as_str(),
+                "agent_subagent_wait" | "agent_turn_complete"
+            ) {
+            self.inferred_subagent_parent_turn(
                 &context.agent_id,
-                &format!("{task}\0{}", context.request_id),
+                &task,
+                selected_subagent_id,
+                context.tool_name == "agent_turn_complete",
             )
-        });
+            .await?
+        } else {
+            None
+        };
+        let turn = context
+            .turn_id
+            .clone()
+            .or(inferred_turn)
+            .unwrap_or_else(|| {
+                safe_id(
+                    "turn",
+                    &context.agent_id,
+                    &format!("{task}\0{}", context.request_id),
+                )
+            });
         context.task_id = Some(task.clone());
         context.turn_id = Some(turn);
 

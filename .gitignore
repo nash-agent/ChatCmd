@@ -6,3 +6,13 @@ web/dist/
 web/*.tsbuildinfo
 /release/
 /logs/*.log
+
+# Local runtime data and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+*.db
+*.db-wal
+*.db-shm
+*.dpapi

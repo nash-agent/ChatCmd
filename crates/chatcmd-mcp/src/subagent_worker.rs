@@ -79,7 +79,7 @@ pub(super) async fn dispatch_registered_subagent(
                 "workerStarted": false,
                 "fallbackRequested": true,
                 "fallbackAttempt": fallback.get("attempt").cloned().unwrap_or(Value::Null),
-                "instruction": "ChatCMD queued this child for the ChatGPT browser extension. Do not duplicate the delegated work in the parent. Call agent_subagent_wait until the child finishes or the fallback exhausts its retries."
+                "instruction": "ChatCMD queued this child for the ChatGPT browser extension. Do not duplicate the delegated work in the parent. Call agent_subagent_wait with the returned parentTaskId as taskId and parentTurnId as turnId until the child finishes or the fallback exhausts its retries."
             }),
         ));
     }

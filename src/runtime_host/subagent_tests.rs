@@ -166,6 +166,7 @@ async fn register_with_grant(
     (registration, subagent_id)
 }
 
+mod correlation;
 mod fallback;
 mod grant_bootstrap;
 mod grants;

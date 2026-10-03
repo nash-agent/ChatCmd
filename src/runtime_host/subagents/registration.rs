@@ -81,6 +81,8 @@ impl RuntimeHost {
                     })?
             {
                 return Ok(subagent_registration_value(
+                    parent_task_id,
+                    parent_turn_id,
                     &deterministic_id,
                     &row.get::<Option<String>, _>("child_task_id")
                         .unwrap_or_else(|| deterministic_task_id.clone()),
@@ -154,6 +156,8 @@ impl RuntimeHost {
                 RuntimeError::new("storage_error", "sub-agent transaction commit failed")
             })?;
             return Ok(subagent_registration_value(
+                parent_task_id,
+                parent_turn_id,
                 &subagent_id,
                 &child_task_id,
                 name,
@@ -212,6 +216,8 @@ impl RuntimeHost {
             );
         }
         Ok(subagent_registration_value(
+            parent_task_id,
+            parent_turn_id,
             &deterministic_id,
             &deterministic_task_id,
             name,

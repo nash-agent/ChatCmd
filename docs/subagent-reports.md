@@ -10,6 +10,13 @@ Call `agent_subagent_wait` with the same coordinator task and parent turn that r
 children. The response includes every descendant of that turn. Inspect each `subagents[]`
 entry, including grandchildren, before drawing a conclusion.
 
+Registration returns `parentTaskId` and `parentTurnId` explicitly; its top-level `taskId` and
+`turnId` also identify the coordinator. `childTaskId` identifies only the delegated worker.
+If `turnId` is omitted on a wait, the server recovers the selected child's original root turn
+only within the authenticated coordinator task. Without `subagentId`, recovery requires a
+single unambiguous parent turn. Explicit unrelated turns and other conversations are still
+rejected. An omitted completion turn also cannot bypass a pending child's finalization gate.
+
 - `allFinished`: no descendant is pending/running. A failed child is finished.
 - `allCompleted`: all descendant lifecycles are completed; retained for compatibility.
 - `allWorkCompleted`: every descendant has an explicit normalized `agentDeclared` completed
