@@ -595,6 +595,10 @@ impl WorkspaceService {
         path: &Path,
         access: PathAccess,
     ) -> RuntimeResult<ExistingWorkspacePath> {
+        if access != PathAccess::Read {
+            let requested_metadata = fs::symlink_metadata(path).map_err(io_error)?;
+            reject_reparse_metadata(&requested_metadata)?;
+        }
         let resolved = path.canonicalize().map_err(io_error)?;
         self.ensure_allowed(&resolved)?;
         let root = self.containing_root(&resolved).ok_or_else(scope_error)?;
@@ -928,6 +932,23 @@ mod path_safety_tests {
             .expect_err("alternate data stream must be rejected");
 
         assert_eq!(error.code, "invalid_path");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn destructive_access_does_not_follow_the_final_symlink_entry() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = TempDir::new().expect("workspace");
+        let target = workspace.path().join("target.txt");
+        fs::write(&target, "content").expect("target");
+        let link = workspace.path().join("link.txt");
+        symlink(&target, &link).expect("symlink");
+
+        let error = service(workspace.path())
+            .existing_for(&link, PathAccess::Delete)
+            .expect_err("delete must not be redirected through a final symlink");
+        assert_eq!(error.code, "symlink_traversal_rejected");
     }
 
     #[cfg(unix)]
