@@ -9,6 +9,10 @@ const listeners = new Set<() => void>();
 const vi: Record<string, string> = {
   'Allow access in all conversations': 'Cho phép truy cập trong mọi cuộc trò chuyện',
   'When enabled and saved, this registered folder is accessible in all conversations. Existing tool permissions and approval requirements still apply.': 'Sau khi bật tùy chọn này và lưu, thư mục đã đăng ký này có thể được truy cập trong mọi cuộc trò chuyện. Quyền sử dụng công cụ và các yêu cầu phê duyệt hiện có vẫn được áp dụng.',
+  'When enabled and saved, the selected global root is accessible in all conversations. Existing tool permissions and approval requirements still apply.': 'Sau khi bật và lưu, thư mục gốc dùng chung đã chọn có thể được truy cập trong mọi cuộc trò chuyện. Quyền sử dụng công cụ và các yêu cầu phê duyệt hiện có vẫn được áp dụng.',
+  'Global root': 'Thư mục gốc dùng chung',
+  'Choose global root': 'Chọn thư mục gốc dùng chung',
+  'Choose the folder shared with every conversation. A filesystem root such as D:\\ is allowed when you explicitly select it here.': 'Chọn thư mục được chia sẻ với mọi cuộc trò chuyện. Bạn có thể chọn trực tiếp thư mục gốc của ổ đĩa như D:\\ tại đây.',
   "Uncheck and save, or delete this project, to revoke this project's shared access.": 'Bỏ chọn rồi lưu, hoặc xóa dự án này, để thu hồi quyền truy cập dùng chung do dự án này cấp.',
 };
 

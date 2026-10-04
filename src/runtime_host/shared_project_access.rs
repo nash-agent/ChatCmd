@@ -19,7 +19,6 @@ impl RuntimeHost {
             let approved = PathBuf::from(path);
             // An unavailable folder or replaced symlink must not redirect the grant.
             if approved.is_absolute()
-                && approved.parent().is_some()
                 && approved.is_dir()
                 && approved
                     .canonicalize()

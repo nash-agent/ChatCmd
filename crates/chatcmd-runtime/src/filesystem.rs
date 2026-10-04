@@ -278,12 +278,6 @@ impl WorkspaceService {
                 ));
             }
             let resolved = scope.canonicalize().map_err(io_error)?;
-            if resolved.parent().is_none() {
-                return Err(RuntimeError::new(
-                    "path_scope_too_broad",
-                    "temporary filesystem scope cannot be a filesystem root",
-                ));
-            }
             allowed_scopes.push(resolved);
         }
         allowed_scopes.sort();
@@ -601,7 +595,10 @@ impl WorkspaceService {
         path: &Path,
         access: PathAccess,
     ) -> RuntimeResult<ExistingWorkspacePath> {
-        reject_reparse_components_within_scopes(path, &self.allowed_scopes)?;
+        if access != PathAccess::Read {
+            let requested_metadata = fs::symlink_metadata(path).map_err(io_error)?;
+            reject_reparse_metadata(&requested_metadata)?;
+        }
         let resolved = path.canonicalize().map_err(io_error)?;
         self.ensure_allowed(&resolved)?;
         let root = self.containing_root(&resolved).ok_or_else(scope_error)?;
@@ -640,7 +637,6 @@ impl WorkspaceService {
         let requested_parent = absolute
             .parent()
             .ok_or_else(|| RuntimeError::new("invalid_path", "path has no parent"))?;
-        reject_reparse_components_within_scopes(requested_parent, &self.allowed_scopes)?;
         let canonical_parent = requested_parent.canonicalize().map_err(io_error)?;
         self.ensure_allowed(&canonical_parent)?;
         let root = self
@@ -699,42 +695,6 @@ fn validate_final_name(name: &std::ffi::OsStr) -> RuntimeResult<()> {
             "invalid_path",
             "alternate data streams are not allowed",
         ));
-    }
-    Ok(())
-}
-
-fn reject_reparse_components_within_scopes(
-    path: &Path,
-    allowed_scopes: &[PathBuf],
-) -> RuntimeResult<()> {
-    let absolute = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        std::env::current_dir().map_err(io_error)?.join(path)
-    };
-    for ancestor in absolute.ancestors().collect::<Vec<_>>().into_iter().rev() {
-        let metadata = match fs::symlink_metadata(ancestor) {
-            Ok(metadata) => metadata,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(io_error(error)),
-        };
-
-        let canonical_or_parent = if metadata.file_type().is_symlink() {
-            ancestor
-                .parent()
-                .and_then(|parent| parent.canonicalize().ok())
-                .map(|parent| parent.join(ancestor.file_name().unwrap_or_default()))
-        } else {
-            ancestor.canonicalize().ok()
-        };
-        let within_scope = canonical_or_parent.as_ref().is_some_and(|candidate| {
-            allowed_scopes
-                .iter()
-                .any(|scope| candidate == scope || candidate.starts_with(scope))
-        });
-        if within_scope {
-            reject_reparse_metadata(&metadata)?;
-        }
     }
     Ok(())
 }
@@ -851,6 +811,20 @@ mod path_safety_tests {
     }
 
     #[test]
+    fn explicit_filesystem_root_can_be_added_as_scope() {
+        let workspace = TempDir::new().expect("workspace");
+        let root = std::env::current_dir()
+            .unwrap()
+            .canonicalize()
+            .unwrap()
+            .ancestors()
+            .last()
+            .unwrap()
+            .to_path_buf();
+        assert!(service(workspace.path()).with_additional_scopes(&[root]).is_ok());
+    }
+
+    #[test]
     fn directory_grant_authorizes_only_its_subtree() {
         let workspace = TempDir::new().expect("workspace");
         let external = TempDir::new().expect("external");
@@ -962,25 +936,60 @@ mod path_safety_tests {
 
     #[cfg(unix)]
     #[test]
-    fn symlink_component_is_rejected_even_when_target_is_inside_root() {
+    fn destructive_access_does_not_follow_the_final_symlink_entry() {
         use std::os::unix::fs::symlink;
 
         let workspace = TempDir::new().expect("workspace");
-        let real = workspace.path().join("real");
-        fs::create_dir(&real).expect("real directory");
-        fs::write(real.join("file.txt"), "content").expect("file");
-        let link = workspace.path().join("link");
-        symlink(&real, &link).expect("symlink");
+        let target = workspace.path().join("target.txt");
+        fs::write(&target, "content").expect("target");
+        let link = workspace.path().join("link.txt");
+        symlink(&target, &link).expect("symlink");
 
         let error = service(workspace.path())
-            .existing(&link.join("file.txt"))
-            .expect_err("symlink traversal must be rejected");
+            .existing_for(&link, PathAccess::Delete)
+            .expect_err("delete must not be redirected through a final symlink");
         assert_eq!(error.code, "symlink_traversal_rejected");
     }
 
     #[cfg(unix)]
     #[test]
-    fn broken_symlink_is_rejected() {
+    fn symlink_component_inside_root_resolves_to_canonical_target() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = TempDir::new().expect("workspace");
+        let real = workspace.path().join("real");
+        fs::create_dir(&real).expect("real directory");
+        let file = real.join("file.txt");
+        fs::write(&file, "content").expect("file");
+        let link = workspace.path().join("link");
+        symlink(&real, &link).expect("symlink");
+
+        let resolved = service(workspace.path())
+            .existing(&link.join("file.txt"))
+            .expect("in-scope symlink target must be allowed");
+        assert_eq!(resolved.as_ref(), file.canonicalize().unwrap());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_component_outside_root_is_rejected_after_resolution() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = TempDir::new().expect("workspace");
+        let outside = TempDir::new().expect("outside");
+        fs::write(outside.path().join("secret.txt"), "secret").expect("secret");
+        let link = workspace.path().join("escape");
+        symlink(outside.path(), &link).expect("symlink");
+
+        let error = service(workspace.path())
+            .existing(&link.join("secret.txt"))
+            .expect_err("out-of-scope symlink target must be rejected");
+        assert_eq!(error.code, "path_outside_allowed_scope");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn broken_symlink_reports_not_found() {
         use std::os::unix::fs::symlink;
 
         let workspace = TempDir::new().expect("workspace");
@@ -989,7 +998,7 @@ mod path_safety_tests {
 
         let error = service(workspace.path())
             .existing(&link)
-            .expect_err("broken symlink must be rejected");
-        assert_eq!(error.code, "symlink_traversal_rejected");
+            .expect_err("broken symlink must fail");
+        assert_eq!(error.code, "not_found");
     }
 }

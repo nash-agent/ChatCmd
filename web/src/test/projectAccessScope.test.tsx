@@ -61,7 +61,26 @@ describe('project access scope', () => {
     expect(checkbox()).toHaveAccessibleDescription(/Uncheck and save, or delete this project/);
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(api.saveWorkspaceProject).toHaveBeenCalledWith({ name: project.name, path: project.path, chatGptProjectUrl: '', allowAllConversations: false });
+    expect(api.saveWorkspaceProject).toHaveBeenCalledWith({ name: project.name, path: project.path, chatGptProjectUrl: '', allowAllConversations: false, globalAccessPath: undefined });
+  });
+
+  it('lets the user choose a separate global root and saves that root', async () => {
+    backend();
+    vi.mocked(api.pickProjectFolder)
+      .mockResolvedValueOnce({ path: project.path })
+      .mockResolvedValueOnce({ path: '/shared/global-root' });
+    renderRail();
+    await addProject();
+    await userEvent.click(checkbox());
+    expect(screen.getByRole('button', { name: 'Global root' })).toHaveTextContent(project.path);
+    await userEvent.click(screen.getByRole('button', { name: 'Global root' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Global root' })).toHaveTextContent('/shared/global-root'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(api.saveWorkspaceProject).toHaveBeenCalledWith(expect.objectContaining({
+      allowAllConversations: true,
+      globalAccessPath: '/shared/global-root',
+    }));
   });
 
   it('persists an explicit opt-in and reloads the checked value when editing', async () => {

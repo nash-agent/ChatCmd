@@ -28,6 +28,7 @@ pub(super) struct SaveWorkspaceProject {
     path: String,
     #[serde(default)]
     allow_all_conversations: bool,
+    global_access_path: Option<String>,
     #[serde(rename = "chatGptProjectUrl")]
     chatgpt_project_url: Option<String>,
 }
@@ -42,7 +43,7 @@ pub(super) async fn workspace_projects(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, Problem> {
     let rows = sqlx::query(
-        "SELECT id,name,path,allow_all_conversations,chatgpt_project_url,sort_order,created_at_ms,updated_at_ms FROM workspace_projects ORDER BY COALESCE(sort_order, 2147483647), updated_at_ms DESC, name COLLATE NOCASE",
+        "SELECT id,name,path,allow_all_conversations,global_access_path,chatgpt_project_url,sort_order,created_at_ms,updated_at_ms FROM workspace_projects ORDER BY COALESCE(sort_order, 2147483647), updated_at_ms DESC, name COLLATE NOCASE",
     )
     .fetch_all(state.repository.pool())
     .await
@@ -59,8 +60,10 @@ pub(super) async fn save_workspace_project(
     let name = input.name.trim();
     let path = input.path.trim();
     let chatgpt_project_url = normalize_chatgpt_project_url(input.chatgpt_project_url.as_deref())?;
-    validate_project_input(name, path)?;
-    let global_access_path = access::approved_path(path, input.allow_all_conversations)?;
+    validate_project_input(name, path, input.global_access_path.as_deref())?;
+    let requested_global_access_path = input.global_access_path.as_deref().unwrap_or(path);
+    let global_access_path =
+        access::approved_path(requested_global_access_path, input.allow_all_conversations)?;
     let canonical = canonical_project_path(path);
     let id = format!("project-{}", Uuid::new_v4());
     let now = now_ms();
@@ -83,7 +86,7 @@ pub(super) async fn save_workspace_project(
     access::revoke_grants(&mut transaction, now).await?;
     transaction.commit().await.map_err(db_problem)?;
     let row = sqlx::query(
-        "SELECT id,name,path,allow_all_conversations,chatgpt_project_url,created_at_ms,updated_at_ms FROM workspace_projects WHERE canonical_path=?",
+        "SELECT id,name,path,allow_all_conversations,global_access_path,chatgpt_project_url,created_at_ms,updated_at_ms FROM workspace_projects WHERE canonical_path=?",
     )
     .bind(&canonical)
     .fetch_one(state.repository.pool())
@@ -100,8 +103,10 @@ pub(super) async fn update_workspace_project(
     let name = input.name.trim();
     let path = input.path.trim();
     let chatgpt_project_url = normalize_chatgpt_project_url(input.chatgpt_project_url.as_deref())?;
-    validate_project_input(name, path)?;
-    let global_access_path = access::approved_path(path, input.allow_all_conversations)?;
+    validate_project_input(name, path, input.global_access_path.as_deref())?;
+    let requested_global_access_path = input.global_access_path.as_deref().unwrap_or(path);
+    let global_access_path =
+        access::approved_path(requested_global_access_path, input.allow_all_conversations)?;
 
     let existing = sqlx::query("SELECT id,path,canonical_path FROM workspace_projects WHERE id=?")
         .bind(&id)
@@ -189,7 +194,7 @@ pub(super) async fn update_workspace_project(
     transaction.commit().await.map_err(db_problem)?;
 
     let row = sqlx::query(
-        "SELECT id,name,path,allow_all_conversations,chatgpt_project_url,created_at_ms,updated_at_ms FROM workspace_projects WHERE id=?",
+        "SELECT id,name,path,allow_all_conversations,global_access_path,chatgpt_project_url,created_at_ms,updated_at_ms FROM workspace_projects WHERE id=?",
     )
     .bind(&id)
     .fetch_one(state.repository.pool())
@@ -286,7 +291,11 @@ async fn has_active_descendant(state: &Arc<AppState>, task_id: &str) -> Result<b
     Ok(count > 0)
 }
 
-fn validate_project_input(name: &str, path: &str) -> Result<(), Problem> {
+fn validate_project_input(
+    name: &str,
+    path: &str,
+    global_access_path: Option<&str>,
+) -> Result<(), Problem> {
     if name.is_empty() || path.is_empty() {
         return Err(Problem::new(
             StatusCode::BAD_REQUEST,
@@ -296,6 +305,7 @@ fn validate_project_input(name: &str, path: &str) -> Result<(), Problem> {
     }
     if name.chars().count() > MAX_PROJECT_NAME_CHARS
         || path.chars().count() > MAX_PROJECT_PATH_CHARS
+        || global_access_path.is_some_and(|value| value.chars().count() > MAX_PROJECT_PATH_CHARS)
     {
         return Err(Problem::new(
             StatusCode::BAD_REQUEST,
@@ -380,12 +390,28 @@ fn canonical_project_path(path: &str) -> String {
     value
 }
 
+fn display_access_path(value: Option<String>) -> Option<String> {
+    value.map(|value| {
+        #[cfg(windows)]
+        {
+            if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+                return format!(r"\\{rest}");
+            }
+            if let Some(rest) = value.strip_prefix(r"\\?\") {
+                return rest.to_owned();
+            }
+        }
+        value
+    })
+}
+
 fn workspace_project_value(row: &sqlx::sqlite::SqliteRow) -> Value {
     json!({
         "id": row.get::<String, _>("id"),
         "name": row.get::<String, _>("name"),
         "path": row.get::<String, _>("path"),
         "allowAllConversations": row.get::<bool, _>("allow_all_conversations"),
+        "globalAccessPath": display_access_path(row.get::<Option<String>, _>("global_access_path")),
         "chatGptProjectUrl": row.get::<Option<String>, _>("chatgpt_project_url"),
         "createdAtUtc": iso_ms(row.get::<i64, _>("created_at_ms")),
         "updatedAtUtc": iso_ms(row.get::<i64, _>("updated_at_ms"))

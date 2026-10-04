@@ -40,6 +40,8 @@
 .workspace-project-access-toggle input[type=checkbox]{width:16px;height:16px;min-height:16px;flex:0 0 auto;margin:0;padding:0;accent-color:var(--accent)}
 .workspace-project-access-toggle input:disabled{cursor:wait}
 .workspace-project-access p{margin:0;color:var(--muted);font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.workspace-project-access-root{display:grid;gap:7px;padding-top:3px}
+.workspace-project-access-root>span{color:var(--muted);font-size:10px;font-weight:700}
 .workspace-project-folder{width:100%;min-height:48px;display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:11px;background:var(--surface-2);padding:9px 12px;text-align:left;color:var(--text)}
 .workspace-project-folder:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));background:var(--surface-3)}
 .workspace-project-folder.empty{color:var(--muted)}

@@ -11,6 +11,16 @@ use super::chatgpt_router_tests::{expect_json, fixture};
 
 const PATH: &str = "/api/local/workspaces/projects";
 
+fn display_path(path: &std::path::Path) -> String {
+    let value = path.canonicalize().unwrap().to_string_lossy().into_owned();
+    #[cfg(windows)]
+    {
+        return value.strip_prefix(r"\\?\").unwrap_or(&value).to_owned();
+    }
+    #[cfg(not(windows))]
+    value
+}
+
 async fn request(
     app: &Router,
     method: &str,
@@ -76,10 +86,7 @@ async fn shared_project_access_is_default_off_authenticated_and_round_trips() {
     )
     .await;
     assert_eq!(listed[0]["allowAllConversations"], true);
-    assert!(
-        listed[0].get("globalAccessPath").is_none(),
-        "canonical internal root is not a second public path field"
-    );
+    assert_eq!(listed[0]["globalAccessPath"], display_path(folder.path()));
     let saved = expect_json(
         request(&app, "PUT", &path, body, Some(&cookie)).await,
         StatusCode::OK,
@@ -93,6 +100,47 @@ async fn shared_project_access_is_default_off_authenticated_and_round_trips() {
             .await
             .unwrap();
     assert_eq!(approved, None);
+}
+
+#[tokio::test]
+async fn shared_project_can_use_a_different_global_root() {
+    let (state, app, _directory) = fixture("running").await;
+    let project = tempfile::tempdir().unwrap();
+    let shared = tempfile::tempdir().unwrap();
+    let token = state
+        .gui_auth
+        .setup_password("project-global-root-test-password".to_owned())
+        .await
+        .unwrap();
+    let cookie = format!("chatcmd_gui_session={token}");
+    let saved = expect_json(
+        request(
+            &app,
+            "POST",
+            PATH,
+            json!({
+                "name":"Shared",
+                "path":project.path(),
+                "allowAllConversations":true,
+                "globalAccessPath":shared.path()
+            }),
+            Some(&cookie),
+        )
+        .await,
+        StatusCode::OK,
+    )
+    .await;
+    assert_eq!(saved["globalAccessPath"], display_path(shared.path()));
+    let approved: Option<String> =
+        sqlx::query_scalar("SELECT global_access_path FROM workspace_projects WHERE id=?")
+            .bind(saved["id"].as_str().unwrap())
+            .fetch_one(state.repository.pool())
+            .await
+            .unwrap();
+    assert_eq!(
+        approved.as_deref(),
+        Some(shared.path().canonicalize().unwrap().to_str().unwrap())
+    );
 }
 
 #[tokio::test]
@@ -137,7 +185,7 @@ async fn shared_project_changes_and_delete_revoke_cached_approval_grants() {
 }
 
 #[tokio::test]
-async fn shared_project_rejects_missing_relative_file_and_filesystem_roots() {
+async fn shared_project_rejects_missing_relative_and_file_global_roots() {
     let (state, app, _directory) = fixture("running").await;
     let token = state
         .gui_auth
@@ -145,13 +193,24 @@ async fn shared_project_rejects_missing_relative_file_and_filesystem_roots() {
         .await
         .unwrap();
     let cookie = format!("chatcmd_gui_session={token}");
-    for path in ["relative", std::path::MAIN_SEPARATOR_STR] {
+    let project = tempfile::tempdir().unwrap();
+    let file = project.path().join("not-a-root.txt");
+    std::fs::write(&file, "data").unwrap();
+    for global_access_path in [
+        "relative".to_owned(),
+        file.to_string_lossy().into_owned(),
+    ] {
         expect_json(
             request(
                 &app,
                 "POST",
                 PATH,
-                json!({"name":"Unsafe", "path":path,"allowAllConversations":true}),
+                json!({
+                    "name":"Unsafe",
+                    "path":project.path(),
+                    "allowAllConversations":true,
+                    "globalAccessPath":global_access_path
+                }),
                 Some(&cookie),
             )
             .await,
