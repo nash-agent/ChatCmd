@@ -86,10 +86,7 @@ async fn shared_project_access_is_default_off_authenticated_and_round_trips() {
     )
     .await;
     assert_eq!(listed[0]["allowAllConversations"], true);
-    assert_eq!(
-        listed[0]["globalAccessPath"],
-        display_path(folder.path())
-    );
+    assert_eq!(listed[0]["globalAccessPath"], display_path(folder.path()));
     let saved = expect_json(
         request(&app, "PUT", &path, body, Some(&cookie)).await,
         StatusCode::OK,
@@ -133,10 +130,7 @@ async fn shared_project_can_use_a_different_global_root() {
         StatusCode::OK,
     )
     .await;
-    assert_eq!(
-        saved["globalAccessPath"],
-        display_path(shared.path())
-    );
+    assert_eq!(saved["globalAccessPath"], display_path(shared.path()));
     let approved: Option<String> =
         sqlx::query_scalar("SELECT global_access_path FROM workspace_projects WHERE id=?")
             .bind(saved["id"].as_str().unwrap())
