@@ -20,6 +20,17 @@ cargo run
 
 If the API works but frontend assets do not, verify `web/dist/index.html` or set `CHATCMD_WEB_DIST` to the correct build directory.
 
+## Windows saves fail while ChatCMD has searched the file
+
+An open read handle and a denied replacement are different conditions. Probe the actual
+target's write/delete sharing before changing permissions. Older search cursors retained
+their current reader between pages, which could conflict with an exclusive save even though
+the reader allowed shared writes and replacement. Search now closes the reader before
+returning a page, retaining only offsets and queued matches. Continuation re-authorizes the
+path and rejects a changed file with `cursor_stale` rather than mixing buffered old results
+with new contents. After saving active work, restart an older backend once to release its
+existing cached handles and load the fix.
+
 ## Port 8080 is already in use
 
 Set another valid port before starting:
