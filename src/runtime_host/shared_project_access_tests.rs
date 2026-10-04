@@ -46,6 +46,28 @@ async fn roots(host: &RuntimeHost, context: &OperationContext) -> serde_json::Va
 }
 
 #[tokio::test]
+async fn explicitly_shared_filesystem_root_is_retained() {
+    let (host, _agent, _root) = test_host().await;
+    let filesystem_root = std::env::current_dir()
+        .unwrap()
+        .canonicalize()
+        .unwrap()
+        .ancestors()
+        .last()
+        .unwrap()
+        .to_path_buf();
+    let root_text = filesystem_root.to_string_lossy().into_owned();
+    sqlx::query("INSERT INTO workspace_projects(id,name,path,canonical_path,allow_all_conversations,global_access_path,created_at_ms,updated_at_ms) VALUES('root','Root',?,?,1,?,0,0)")
+        .bind(&root_text)
+        .bind(&root_text)
+        .bind(&root_text)
+        .execute(host.repository.pool())
+        .await
+        .unwrap();
+    assert_eq!(host.shared_project_scopes().await.unwrap(), vec![filesystem_root]);
+}
+
+#[tokio::test]
 async fn opt_in_adds_alias_to_existing_conversations_and_revokes_reads_and_writes() {
     let (host, agent, _root) = test_host().await;
     let external = TempDir::new().unwrap();
