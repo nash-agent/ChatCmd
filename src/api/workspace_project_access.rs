@@ -13,7 +13,7 @@ pub(super) fn approved_path(path: &str, enabled: bool) -> Result<Option<String>,
         Problem::new(
             StatusCode::BAD_REQUEST,
             "Invalid shared project folder",
-            "Choose an existing absolute directory below a filesystem root before allowing access in all conversations.",
+            "Choose an existing absolute directory before allowing access in all conversations.",
         )
     };
     let requested = Path::new(path);
@@ -21,7 +21,7 @@ pub(super) fn approved_path(path: &str, enabled: bool) -> Result<Option<String>,
         return Err(invalid());
     }
     let canonical = requested.canonicalize().map_err(|_| invalid())?;
-    if !canonical.is_dir() || canonical.parent().is_none() {
+    if !canonical.is_dir() {
         return Err(invalid());
     }
     Ok(Some(canonical.to_string_lossy().into_owned()))
@@ -49,7 +49,18 @@ mod tests {
     fn access_is_explicit_and_bounded() {
         assert_eq!(approved_path("missing", false).unwrap(), None);
         assert!(approved_path("relative", true).is_err());
-        assert!(approved_path(std::path::MAIN_SEPARATOR_STR, true).is_err());
+        let filesystem_root = std::env::current_dir()
+            .unwrap()
+            .canonicalize()
+            .unwrap()
+            .ancestors()
+            .last()
+            .unwrap()
+            .to_path_buf();
+        assert_eq!(
+            approved_path(filesystem_root.to_str().unwrap(), true).unwrap(),
+            Some(filesystem_root.to_string_lossy().into_owned())
+        );
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().to_str().unwrap();
         assert_eq!(
