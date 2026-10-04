@@ -11,6 +11,16 @@ use super::chatgpt_router_tests::{expect_json, fixture};
 
 const PATH: &str = "/api/local/workspaces/projects";
 
+fn display_path(path: &std::path::Path) -> String {
+    let value = path.canonicalize().unwrap().to_string_lossy().into_owned();
+    #[cfg(windows)]
+    {
+        return value.strip_prefix(r"\\?\").unwrap_or(&value).to_owned();
+    }
+    #[cfg(not(windows))]
+    value
+}
+
 async fn request(
     app: &Router,
     method: &str,
@@ -78,7 +88,7 @@ async fn shared_project_access_is_default_off_authenticated_and_round_trips() {
     assert_eq!(listed[0]["allowAllConversations"], true);
     assert_eq!(
         listed[0]["globalAccessPath"],
-        folder.path().canonicalize().unwrap().to_string_lossy().as_ref()
+        display_path(folder.path())
     );
     let saved = expect_json(
         request(&app, "PUT", &path, body, Some(&cookie)).await,
@@ -125,7 +135,7 @@ async fn shared_project_can_use_a_different_global_root() {
     .await;
     assert_eq!(
         saved["globalAccessPath"],
-        shared.path().canonicalize().unwrap().to_string_lossy().as_ref()
+        display_path(shared.path())
     );
     let approved: Option<String> =
         sqlx::query_scalar("SELECT global_access_path FROM workspace_projects WHERE id=?")
