@@ -390,13 +390,28 @@ fn canonical_project_path(path: &str) -> String {
     value
 }
 
+fn display_access_path(value: Option<String>) -> Option<String> {
+    value.map(|value| {
+        #[cfg(windows)]
+        {
+            if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+                return format!(r"\\{rest}");
+            }
+            if let Some(rest) = value.strip_prefix(r"\\?\") {
+                return rest.to_owned();
+            }
+        }
+        value
+    })
+}
+
 fn workspace_project_value(row: &sqlx::sqlite::SqliteRow) -> Value {
     json!({
         "id": row.get::<String, _>("id"),
         "name": row.get::<String, _>("name"),
         "path": row.get::<String, _>("path"),
         "allowAllConversations": row.get::<bool, _>("allow_all_conversations"),
-        "globalAccessPath": row.get::<Option<String>, _>("global_access_path"),
+        "globalAccessPath": display_access_path(row.get::<Option<String>, _>("global_access_path")),
         "chatGptProjectUrl": row.get::<Option<String>, _>("chatgpt_project_url"),
         "createdAtUtc": iso_ms(row.get::<i64, _>("created_at_ms")),
         "updatedAtUtc": iso_ms(row.get::<i64, _>("updated_at_ms"))
