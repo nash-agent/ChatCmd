@@ -2,8 +2,6 @@ use super::*;
 use crate::{AtomicWriteOptions, DurabilityMode, MetadataPolicy};
 #[cfg(unix)]
 use std::fs::File;
-#[cfg(windows)]
-use std::path::PathBuf;
 use std::{
     fs,
     io::{BufReader, BufWriter, Read, Write},
@@ -187,32 +185,16 @@ pub(super) fn atomic_replace(
 }
 
 #[cfg(windows)]
+#[path = "filesystem_windows_replace.rs"]
+mod windows_replace;
+
+#[cfg(windows)]
 pub(super) fn atomic_replace(
     temporary: tempfile::NamedTempFile,
     target: &Path,
     durability: DurabilityMode,
 ) -> RuntimeResult<()> {
-    use std::os::windows::ffi::OsStrExt as _;
-    use windows_sys::Win32::Storage::FileSystem::{
-        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
-    };
-    let temp_path: PathBuf = temporary
-        .into_temp_path()
-        .keep()
-        .map_err(|error| io_error(error.error))?;
-    let source: Vec<u16> = temp_path.as_os_str().encode_wide().chain(Some(0)).collect();
-    let destination: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
-    let mut flags = MOVEFILE_REPLACE_EXISTING;
-    if durability != DurabilityMode::None {
-        flags |= MOVEFILE_WRITE_THROUGH;
-    }
-    // SAFETY: both buffers are valid, NUL-terminated UTF-16 strings for the duration of the call.
-    if unsafe { MoveFileExW(source.as_ptr(), destination.as_ptr(), flags) } == 0 {
-        let error = std::io::Error::last_os_error();
-        let _ = fs::remove_file(&temp_path);
-        return Err(io_error(error));
-    }
-    Ok(())
+    windows_replace::replace(temporary, target, durability)
 }
 
 #[cfg(unix)]

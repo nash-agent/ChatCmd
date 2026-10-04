@@ -17,6 +17,19 @@ only within the authenticated coordinator task. Without `subagentId`, recovery r
 single unambiguous parent turn. Explicit unrelated turns and other conversations are still
 rejected. An omitted completion turn also cannot bypass a pending child's finalization gate.
 
+For an active child, omitted tool `turnId` values reuse its single delegated user turn,
+including the finalizer. New user messages and explicit turn IDs are preserved. Multiple
+child user turns require explicit correlation instead of guessing. This keeps the stored
+final answer and tool evidence on the turn that the parent report reader authorizes.
+
+Each child also exposes `browserSession` (attempt, state, conversation identity and startup
+error) and `execution` (tool counts, latest tool status, delegated user and public final turn
+IDs). A heartbeat or registration alone does not prove that a browser tab opened or work ran.
+The local management page must run in Chrome with the bridge extension installed. Fresh
+server-authorized reservations can recover missed creation events after reconnect or
+extension Reload; admission coalesces the same attempt. Claimed browser children can recover
+a missing MCP finalizer only from a stable, bound final answer after the guarded quiet period.
+
 - `allFinished`: no descendant is pending/running. A failed child is finished.
 - `allCompleted`: all descendant lifecycles are completed; retained for compatibility.
 - `allWorkCompleted`: every descendant has an explicit normalized `agentDeclared` completed

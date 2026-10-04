@@ -23,6 +23,7 @@ export interface SubagentFallbackRequest {
   maxAttempts: number;
   conversationId?: string | null;
   conversationUrl?: string | null;
+  canStartNewConversation?: boolean;
 }
 
 export interface SubagentFallbackResult {

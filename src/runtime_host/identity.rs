@@ -154,7 +154,14 @@ impl RuntimeHost {
         {
             self.validate_provider_scope_task(context, &task).await?;
         }
+        let child_turn = if context.turn_id.is_none() && first_user_message.is_none() {
+            self.inferred_subagent_child_turn(&context.agent_id, &task)
+                .await?
+        } else {
+            None
+        };
         let inferred_turn = if context.turn_id.is_none()
+            && child_turn.is_none()
             && matches!(
                 context.tool_name.as_str(),
                 "agent_subagent_wait" | "agent_turn_complete"
@@ -172,6 +179,7 @@ impl RuntimeHost {
         let turn = context
             .turn_id
             .clone()
+            .or(child_turn)
             .or(inferred_turn)
             .unwrap_or_else(|| {
                 safe_id(

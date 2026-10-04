@@ -3,6 +3,37 @@ use std::collections::BTreeSet;
 use super::*;
 
 impl RuntimeHost {
+    /// An authenticated active child has one delegated user turn. Keep optional
+    /// tool correlation on that turn so evidence and the final report agree.
+    /// Explicit turn IDs and new user messages never use this inference.
+    pub(in crate::runtime_host) async fn inferred_subagent_child_turn(
+        &self,
+        agent_id: &str,
+        child_task_id: &str,
+    ) -> RuntimeResult<Option<String>> {
+        let turns = sqlx::query_scalar::<_, String>(
+            "SELECT u.turn_id FROM subagent_runs r JOIN tasks t ON t.id=r.child_task_id
+             JOIN timeline_events u ON u.task_id=t.id
+             WHERE r.child_task_id=? AND t.agent_id=? AND r.status='running'
+               AND u.actor='user' AND u.kind='message' AND u.turn_id IS NOT NULL
+               AND u.created_at_ms>=COALESCE(r.started_at_ms,r.created_at_ms)
+               AND COALESCE(json_extract(u.payload_json,'$.provider'),'')<>'chatgpt_web'
+             GROUP BY u.turn_id ORDER BY MIN(u.created_at_ms),u.turn_id LIMIT 2",
+        )
+        .bind(child_task_id)
+        .bind(agent_id)
+        .fetch_all(self.repository.pool())
+        .await
+        .map_err(|_| RuntimeError::new("storage_error", "sub-agent child turn lookup failed"))?;
+        if turns.len() > 1 {
+            return Err(RuntimeError::new(
+                "invalid_context",
+                "multiple child user turns exist; reuse the delegated user message's turnId",
+            ));
+        }
+        Ok(turns.into_iter().next())
+    }
+
     /// Recover omitted lifecycle correlation only within the resolved parent task.
     /// Explicit caller turns never use this fallback, including unrelated turns.
     pub(in crate::runtime_host) async fn inferred_subagent_parent_turn(

@@ -45,6 +45,23 @@ fn subagent_row_value(row: &sqlx::sqlite::SqliteRow) -> Value {
         "name": row.get::<String, _>("name"),
         "request": row.get::<String, _>("request"),
         "status": status,
+        "execution": {
+            "childTaskPresent": row.get::<bool, _>("child_task_present"),
+            "toolCallCount": row.get::<i64, _>("tool_call_count"),
+            "workToolCallCount": row.get::<i64, _>("work_tool_call_count"),
+            "lastToolCallAtMs": row.get::<Option<i64>, _>("last_tool_call_at_ms"),
+            "delegatedUserTurnId": row.get::<Option<String>, _>("delegated_user_turn_id"),
+            "publicFinalTurnId": row.get::<Option<String>, _>("public_final_turn_id"),
+            "latestToolName": row.get::<Option<String>, _>("latest_tool_name"),
+            "latestToolStatus": row.get::<Option<String>, _>("latest_tool_status")
+        },
+        "browserSession": {
+            "state": row.get::<String, _>("fallback_state"),
+            "attempt": row.get::<i64, _>("fallback_attempts"),
+            "conversationId": row.get::<Option<String>, _>("fallback_conversation_id"),
+            "conversationUrl": row.get::<Option<String>, _>("fallback_conversation_url"),
+            "startupError": row.get::<Option<String>, _>("fallback_error")
+        },
         "approvalGrant": chatcmd_storage::subagent_approval::status_value(row.get::<Option<String>, _>("approval_grant_json").as_deref(), row.get("approval_grant_requested")),
         "createdAtMs": row.get::<i64, _>("created_at_ms"),
         "updatedAtMs": row.get::<i64, _>("updated_at_ms"),

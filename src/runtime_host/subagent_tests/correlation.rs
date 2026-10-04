@@ -8,6 +8,80 @@ fn implicit_context(agent: &str, tool: &str) -> OperationContext {
 }
 
 #[tokio::test]
+async fn browser_child_omitted_turn_preserves_the_delegated_report_turn() {
+    let (host, parent, registration, id, _dir) = fallback_fixture().await;
+    host.request_subagent_extension_fallback(&parent, &registration, &delegated_prompt(&id))
+        .await
+        .unwrap();
+    let mut child = implicit_context(&parent.agent_id, "agent_user_message");
+    child.conversation_scope_id = Some("openai:implicit-browser-child".to_owned());
+    let started = Box::pin(host.call_persisted(
+        "agent_user_message",
+        child.clone(),
+        json!({"content":delegated_prompt(&id)}),
+    ))
+    .await
+    .unwrap();
+    child.request_id = "implicit-browser-progress".to_owned();
+    child.tool_name = "agent_progress".to_owned();
+    let progress = Box::pin(host.call_persisted(
+        "agent_progress",
+        child.clone(),
+        json!({"message":"Read-only lookup finished"}),
+    ))
+    .await
+    .unwrap();
+    assert_eq!(progress["turnId"], started["turnId"]);
+    child.request_id = "implicit-browser-complete".to_owned();
+    child.tool_name = "agent_turn_complete".to_owned();
+    let completed = Box::pin(host.call_persisted(
+        "agent_turn_complete",
+        child,
+        json!({"content":"size=142503, readonly=false", "workOutcome":"completed"}),
+    ))
+    .await
+    .unwrap();
+    assert_eq!(completed["turnId"], started["turnId"]);
+    let report = host.wait_for_subagents(&parent, 250).await.unwrap();
+    assert_eq!(
+        report["subagents"][0]["report"]["content"],
+        "size=142503, readonly=false"
+    );
+    assert_eq!(
+        report["subagents"][0]["taskId"],
+        registration["childTaskId"]
+    );
+}
+
+#[tokio::test]
+async fn child_turn_inference_rejects_ambiguity_and_preserves_ownership() {
+    let (host, parent, registration, _id, _dir) = fallback_fixture().await;
+    let child = begin_child(&host, &parent, &registration).await;
+    let task = child.task_id.as_deref().unwrap();
+    assert!(
+        host.inferred_subagent_child_turn("another-agent", task)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let mut explicit = child.clone();
+    explicit.turn_id = Some("explicit-child-turn".to_owned());
+    host.ensure_call_identity(&mut explicit, None)
+        .await
+        .unwrap();
+    assert_eq!(explicit.turn_id.as_deref(), Some("explicit-child-turn"));
+    sqlx::query("INSERT INTO timeline_events(event_id,task_id,turn_id,actor,kind,idempotency_key,payload_json,created_at_ms) VALUES('extra-child-user',?,'other-child-turn','user','message','extra-child-user','{}',?)")
+        .bind(task).bind(now_ms()+10).execute(host.repository.pool()).await.unwrap();
+    assert_eq!(
+        host.inferred_subagent_child_turn(&parent.agent_id, task)
+            .await
+            .unwrap_err()
+            .code,
+        "invalid_context"
+    );
+}
+
+#[tokio::test]
 async fn omitted_wait_ids_recover_report_in_the_authenticated_parent_conversation() {
     let (host, mut parent, _dir) = parent_fixture().await;
     parent.conversation_scope_id = Some("openai:correlation-test".to_owned());

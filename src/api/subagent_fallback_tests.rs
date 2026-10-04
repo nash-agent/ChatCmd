@@ -8,6 +8,8 @@ use tempfile::TempDir;
 
 use super::*;
 use crate::runtime_host::user_message_tests::test_host;
+#[path = "subagent_browser_completion_tests.rs"]
+mod browser_completion_tests;
 
 const SUBAGENT_ID: &str = "subagent-fallback-api";
 const PARENT_TASK_ID: &str = "task-fallback-api-parent";
@@ -69,6 +71,7 @@ async fn pending_api_returns_queued_child_with_marker_and_parent_identity() {
     assert_eq!(item["parentTaskId"], PARENT_TASK_ID);
     assert_eq!(item["parentTurnId"], PARENT_TURN_ID);
     assert_eq!(item["attempt"], 1);
+    assert_eq!(item["canStartNewConversation"], true);
     assert!(item["submittedContent"].as_str().is_some_and(|value| {
         value.starts_with("Use plugin @User message sync test to perform the following request:")
     }));
@@ -77,6 +80,40 @@ async fn pending_api_returns_queued_child_with_marker_and_parent_identity() {
             .as_str()
             .is_some_and(|value| value.contains("CMDGPT_SUBAGENT_ID=subagent-fallback-api"))
     );
+}
+
+#[tokio::test]
+async fn recovery_does_not_authorize_expired_reservations_or_stopped_parents() {
+    let (state, _directory) = fixture().await;
+    sqlx::query("UPDATE subagent_runs SET created_at_ms=? WHERE id=?")
+        .bind(now_ms() - 180_001)
+        .bind(SUBAGENT_ID)
+        .execute(state.repository.pool())
+        .await
+        .unwrap();
+    let Json(pending) = pending_subagent_fallbacks(State(state.clone()))
+        .await
+        .unwrap();
+    assert_eq!(pending[0]["canStartNewConversation"], false);
+    sqlx::query("UPDATE tasks SET status='stopped' WHERE id=?")
+        .bind(PARENT_TASK_ID)
+        .execute(state.repository.pool())
+        .await
+        .unwrap();
+    let Json(pending) = pending_subagent_fallbacks(State(state)).await.unwrap();
+    assert!(pending.is_empty());
+}
+
+#[tokio::test]
+async fn recovery_does_not_restart_a_started_attempt_without_identity() {
+    let (state, _directory) = fixture().await;
+    sqlx::query("UPDATE subagent_runs SET fallback_state='started' WHERE id=?")
+        .bind(SUBAGENT_ID)
+        .execute(state.repository.pool())
+        .await
+        .unwrap();
+    let Json(pending) = pending_subagent_fallbacks(State(state)).await.unwrap();
+    assert_eq!(pending[0]["canStartNewConversation"], false);
 }
 
 #[tokio::test]
@@ -130,6 +167,7 @@ async fn stale_browser_result_after_mcp_claim_is_ignored_without_retry() {
         State(state.clone()),
         Path(SUBAGENT_ID.to_owned()),
         Json(SubagentFallbackResult {
+            completion_evidence: None,
             attempt: 1,
             status: "failed".to_owned(),
             assistant_content: None,
@@ -162,6 +200,7 @@ async fn browser_failures_retry_same_child_then_exhaust_on_attempt_three() {
             State(state.clone()),
             Path(SUBAGENT_ID.to_owned()),
             Json(SubagentFallbackResult {
+                completion_evidence: None,
                 attempt,
                 status: "failed".to_owned(),
                 assistant_content: None,
@@ -222,6 +261,7 @@ async fn browser_only_final_response_completes_child_and_saves_conversation() {
         State(state.clone()),
         Path(SUBAGENT_ID.to_owned()),
         Json(SubagentFallbackResult {
+            completion_evidence: None,
             attempt: 1,
             status: "completed".to_owned(),
             assistant_content: Some("Browser-only delegated answer".to_owned()),

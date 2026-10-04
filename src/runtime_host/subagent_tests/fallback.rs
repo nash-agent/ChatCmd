@@ -48,6 +48,19 @@ async fn fallback_marker_claims_reserved_child_and_parent_wait_finishes_after_co
         .expect("wait running fallback");
     assert_eq!(running.get("runningCount"), Some(&Value::from(1)));
     assert_eq!(running.get("allFinished"), Some(&Value::Bool(false)));
+    // A lifecycle claim alone proves neither a browser conversation nor tool work.
+    assert_eq!(
+        running["subagents"][0]["execution"]["childTaskPresent"],
+        true
+    );
+    assert_eq!(running["subagents"][0]["execution"]["toolCallCount"], 0);
+    assert_eq!(running["subagents"][0]["execution"]["workToolCallCount"], 0);
+    assert!(running["subagents"][0]["execution"]["latestToolName"].is_null());
+    assert_eq!(
+        running["subagents"][0]["browserSession"]["state"],
+        "claimed"
+    );
+    assert!(running["subagents"][0]["browserSession"]["conversationId"].is_null());
 
     host.finish_subagent_for_child(&child_task_id, "completed")
         .await

@@ -56,9 +56,10 @@ export function GlobalSubagentFallbackBridge() {
   const recoverPending = useCallback(async () => {
     try {
       const pending = await api.pendingSubagentFallbacks();
-      // Reconnect may expose stale reservations. Only resume known chats;
-      // fresh dispatch belongs to the live fallback_requested event.
-      const resumable = pending.filter((fallback) => Boolean(fallback.conversationUrl?.trim()));
+      // The server authorizes fresh reservations for missed creation events.
+      // Keep skipping stale/legacy reservations with no known conversation.
+      const resumable = pending.filter((fallback) => Boolean(fallback.conversationUrl?.trim())
+        || fallback.canStartNewConversation === true);
       await Promise.all(resumable.map(dispatchFallback));
     } catch {
       // A later realtime reconnect will try recovery again.
@@ -81,7 +82,12 @@ export function GlobalSubagentFallbackBridge() {
   }, [dispatchFallback]));
 
   useEffect(() => {
-    if (realtimeState === 'online') void recoverPending();
+    if (realtimeState !== 'online') return;
+    void recoverPending();
+    // Extension Reload may invalidate transport without reconnecting realtime.
+    // Replay the same attempt; extension admission coalesces duplicate starts.
+    const timer = window.setInterval(() => void recoverPending(), 5_000);
+    return () => window.clearInterval(timer);
   }, [realtimeState, recoverPending]);
 
   return null;

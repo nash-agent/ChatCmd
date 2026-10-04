@@ -14,6 +14,11 @@ use crate::websocket::{AppEvent, AppState};
 use super::{Problem, db_problem, not_found, now_ms};
 
 const MAX_EXTENSION_FALLBACK_ATTEMPTS: i64 = 3;
+#[path = "subagent_browser_completion.rs"]
+mod browser_completion;
+#[path = "subagent_pending_recovery.rs"]
+mod pending_recovery;
+pub(super) use pending_recovery::pending_subagent_fallbacks;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,29 +34,10 @@ pub(super) struct SubagentFallbackResult {
     attempt: i64,
     status: String,
     assistant_content: Option<String>,
+    completion_evidence: Option<browser_completion::BrowserFinalEvidence>,
     error_message: Option<String>,
     conversation_id: Option<String>,
     conversation_url: Option<String>,
-}
-
-pub(super) async fn pending_subagent_fallbacks(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<Value>>, Problem> {
-    if !heartbeat::creation_enabled(&state).await? {
-        return Ok(Json(Vec::new()));
-    }
-    let rows = sqlx::query(
-        "SELECT r.id,r.parent_task_id,r.parent_turn_id,r.child_task_id,r.name,r.request,r.fallback_attempts,r.fallback_conversation_id,r.fallback_conversation_url,a.name AS agent_name,p.project_folder AS parent_project_folder FROM subagent_runs r LEFT JOIN tasks t ON t.id=r.child_task_id LEFT JOIN mcp_agents a ON a.id=t.agent_id LEFT JOIN tasks p ON p.id=r.parent_task_id WHERE r.status='pending' AND r.fallback_state IN ('requested','started') AND r.fallback_attempts BETWEEN 1 AND ? ORDER BY r.updated_at_ms,r.id",
-    )
-    .bind(MAX_EXTENSION_FALLBACK_ATTEMPTS)
-    .fetch_all(state.repository.pool())
-    .await
-    .map_err(db_problem)?;
-    Ok(Json(
-        rows.iter()
-            .map(|row| fallback_request_value(row, row.get::<i64, _>("fallback_attempts")))
-            .collect(),
-    ))
 }
 
 pub(super) async fn subagent_fallback_started(
@@ -62,6 +48,11 @@ pub(super) async fn subagent_fallback_started(
     validate_attempt(input.attempt)?;
     let subagent_id = subagent_id.trim();
     let row = fallback_row(&state, subagent_id).await?;
+    if row.get::<String, _>("status") == "running" {
+        return browser_completion::record_claimed_identity(&state, subagent_id, &input)
+            .await
+            .map(Json);
+    }
     if let Some(response) = reject_if_not_current(&row, input.attempt) {
         return Ok(Json(response));
     }
@@ -123,6 +114,15 @@ pub(super) async fn subagent_fallback_result(
     validate_attempt(input.attempt)?;
     let subagent_id = subagent_id.trim();
     let row = fallback_row(&state, subagent_id).await?;
+    if input.status == "completed"
+        && input.completion_evidence.is_some()
+        && row.get::<String, _>("status") == "running"
+        && row.get::<String, _>("fallback_state") == "claimed"
+    {
+        return browser_completion::recover_claimed_final(&state, subagent_id, &input)
+            .await
+            .map(Json);
+    }
     if let Some(response) = reject_if_not_current(&row, input.attempt) {
         return Ok(Json(response));
     }

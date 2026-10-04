@@ -23,7 +23,15 @@ pub async fn descendant_runs(
         r.status AS registered_status,r.created_at_ms,r.updated_at_ms,r.completed_at_ms,r.worker_id,
         r.attempt,r.lease_expires_at_ms,r.last_heartbeat_at_ms,r.max_runtime_ms,r.started_at_ms,
         COALESCE(r.terminal_reason,CASE WHEN r.status='failed' THEN r.fallback_error END) AS terminal_reason,
-        t.status AS task_status,p.title AS parent_name,
+        t.status AS task_status,p.title AS parent_name,t.id IS NOT NULL AS child_task_present,
+        r.fallback_state,r.fallback_attempts,r.fallback_conversation_id,r.fallback_conversation_url,r.fallback_error,
+        (SELECT COUNT(*) FROM timeline_events e WHERE e.task_id=r.child_task_id AND e.kind='tool_call') AS tool_call_count,
+        (SELECT COUNT(*) FROM timeline_events e WHERE e.task_id=r.child_task_id AND e.kind='tool_call' AND json_extract(e.payload_json,'$.tool') NOT GLOB 'agent_*') AS work_tool_call_count,
+        (SELECT MAX(e.created_at_ms) FROM timeline_events e WHERE e.task_id=r.child_task_id AND e.kind='tool_call') AS last_tool_call_at_ms,
+        (SELECT e.turn_id FROM timeline_events e WHERE e.task_id=r.child_task_id AND e.actor='user' AND e.kind='message' AND e.created_at_ms>=COALESCE(r.started_at_ms,r.created_at_ms) ORDER BY e.created_at_ms,e.event_id LIMIT 1) AS delegated_user_turn_id,
+        (SELECT e.turn_id FROM timeline_events e WHERE e.task_id=r.child_task_id AND e.actor='assistant' AND e.kind='status' AND json_extract(e.payload_json,'$.status')='completed' ORDER BY e.created_at_ms,e.event_id LIMIT 1) AS public_final_turn_id,
+        (SELECT json_extract(e.payload_json,'$.tool') FROM timeline_events e WHERE e.task_id=r.child_task_id AND e.kind IN ('tool_call','tool_result') ORDER BY e.created_at_ms DESC,e.event_id DESC LIMIT 1) AS latest_tool_name,
+        (SELECT json_extract(e.payload_json,'$.status') FROM timeline_events e WHERE e.task_id=r.child_task_id AND e.kind IN ('tool_call','tool_result') ORDER BY e.created_at_ms DESC,e.event_id DESC LIMIT 1) AS latest_tool_status,
         r.requested_approval_grant_json IS NOT NULL AS approval_grant_requested,
         json_extract(g.payload_json,'$.subagentApproval') AS approval_grant_json
         FROM descendants d JOIN subagent_runs r ON r.id=d.id
